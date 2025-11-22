@@ -1,6 +1,7 @@
 using BepInEx;
 using BepInEx.Logging;
 using HarmonyLib;
+using ChillPatcher.Patches;
 
 namespace ChillPatcher
 {
@@ -22,6 +23,20 @@ namespace ChillPatcher
             harmony.PatchAll();
 
             Logger.LogInfo("Harmony patches applied!");
+
+            // 初始化全局键盘钩子（用于壁纸引擎模式）
+            KeyboardHookPatch.Initialize();
+            Logger.LogInfo("Keyboard hook initialized!");
+
+            // 注册游戏退出事件来清理钩子
+            UnityEngine.Application.quitting += OnApplicationQuitting;
+        }
+
+        private void OnApplicationQuitting()
+        {
+            // 清理键盘钩子
+            KeyboardHookPatch.Cleanup();
+            Logger.LogInfo("Application quitting - cleanup done!");
         }
     }
 }
