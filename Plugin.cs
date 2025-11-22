@@ -27,16 +27,14 @@ namespace ChillPatcher
             // 初始化全局键盘钩子（用于壁纸引擎模式）
             KeyboardHookPatch.Initialize();
             Logger.LogInfo("Keyboard hook initialized!");
-
-            // 注册游戏退出事件来清理钩子
-            UnityEngine.Application.quitting += OnApplicationQuitting;
         }
 
-        private void OnApplicationQuitting()
+        // Unity 生命周期方法 - 在应用退出时自动调用
+        private void OnApplicationQuit()
         {
-            // 清理键盘钩子
+            Logger.LogInfo("OnApplicationQuit called - cleaning up keyboard hook...");
             KeyboardHookPatch.Cleanup();
-            Logger.LogInfo("Application quitting - cleanup done!");
+            Logger.LogInfo("Keyboard hook cleanup completed!");
         }
     }
 }

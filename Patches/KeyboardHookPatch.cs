@@ -48,6 +48,10 @@ namespace ChillPatcher.Patches
         private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
 
         [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool PeekMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
+
+        [DllImport("user32.dll")]
         private static extern bool TranslateMessage([In] ref MSG lpMsg);
 
         [DllImport("user32.dll")]
@@ -55,6 +59,8 @@ namespace ChillPatcher.Patches
 
         [DllImport("user32.dll")]
         private static extern void PostQuitMessage(int nExitCode);
+        
+        private const uint PM_REMOVE = 0x0001;
 
         [StructLayout(LayoutKind.Sequential)]
         public struct MSG
@@ -129,15 +135,36 @@ namespace ChillPatcher.Patches
 
                 Plugin.Logger.LogInfo("[KeyboardHook] 钩子设置成功，开始消息循环");
 
-                // 消息循环
+                // 非阻塞消息循环 - 使用 PeekMessage 替代 GetMessage
                 MSG msg;
-                while (isRunning && GetMessage(out msg, IntPtr.Zero, 0, 0) > 0)
+                while (isRunning)
                 {
-                    TranslateMessage(ref msg);
-                    DispatchMessage(ref msg);
+                    // 非阻塞地检查消息
+                    if (PeekMessage(out msg, IntPtr.Zero, 0, 0, PM_REMOVE))
+                    {
+                        if (msg.message == 0x0012) // WM_QUIT
+                        {
+                            Plugin.Logger.LogInfo("[KeyboardHook] 收到 WM_QUIT 消息");
+                            break;
+                        }
+                        
+                        TranslateMessage(ref msg);
+                        DispatchMessage(ref msg);
+                    }
+                    else
+                    {
+                        // 没有消息时短暂休眠，避免 CPU 占用过高
+                        Thread.Sleep(PluginConfig.KeyboardHookInterval.Value);
+                    }
                 }
 
                 Plugin.Logger.LogInfo("[KeyboardHook] 消息循环退出");
+            }
+            catch (ThreadAbortException)
+            {
+                // Unity 退出时会中止后台线程，这是正常的
+                Plugin.Logger.LogInfo("[KeyboardHook] 线程被中止（正常退出）");
+                Thread.ResetAbort(); // 重置中止状态，防止异常传播
             }
             catch (Exception ex)
             {
@@ -160,16 +187,18 @@ namespace ChillPatcher.Patches
         {
             isRunning = false;
             
-            if (hookThread != null && hookThread.IsAlive)
-            {
-                PostQuitMessage(0);
-                hookThread.Join(1000); // 等待最多1秒
-            }
-
+            // 先卸载钩子
             if (hookId != IntPtr.Zero)
             {
                 UnhookWindowsHookEx(hookId);
                 hookId = IntPtr.Zero;
+            }
+
+            // 发送退出消息
+            if (hookThread != null && hookThread.IsAlive)
+            {
+                PostQuitMessage(0);
+                // 不等待线程，让它自然结束
             }
 
             Plugin.Logger.LogInfo("[KeyboardHook] 钩子已清理");

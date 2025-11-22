@@ -13,6 +13,9 @@ namespace ChillPatcher
         // DLC设置
         public static ConfigEntry<bool> EnableDLC { get; private set; }
 
+        // 键盘钩子设置
+        public static ConfigEntry<int> KeyboardHookInterval { get; private set; }
+
         public static void Initialize(ConfigFile config)
         {
             // 语言设置 - 使用枚举值
@@ -53,10 +56,26 @@ namespace ChillPatcher
                 "false = 禁用DLC（默认）"
             );
 
+            // 键盘钩子消息循环间隔
+            KeyboardHookInterval = config.Bind(
+                "KeyboardHook",
+                "MessageLoopInterval",
+                10,
+                new ConfigDescription(
+                    "键盘钩子消息循环检查间隔（毫秒）\n" +
+                    "默认值：1ms（推荐）\n" +
+                    "较小值：响应更快，CPU占用略高\n" +
+                    "较大值：CPU占用低，响应略慢\n" +
+                    "建议范围：1-10ms",
+                    new AcceptableValueRange<int>(1, 100)
+                )
+            );
+
             Plugin.Logger.LogInfo("配置文件已加载:");
             Plugin.Logger.LogInfo($"  - 默认语言: {DefaultLanguage.Value}");
             Plugin.Logger.LogInfo($"  - 离线用户ID: {OfflineUserId.Value}");
             Plugin.Logger.LogInfo($"  - 启用DLC: {EnableDLC.Value}");
+            Plugin.Logger.LogInfo($"  - 键盘钩子间隔: {KeyboardHookInterval.Value}ms");
         }
     }
 }
