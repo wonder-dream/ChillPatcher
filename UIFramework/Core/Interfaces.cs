@@ -254,6 +254,11 @@ namespace ChillPatcher.UIFramework.Core
         Task<GameAudioInfo> LoadFromFile(string filePath);
 
         /// <summary>
+        /// 从文件加载音频（指定UUID）
+        /// </summary>
+        Task<GameAudioInfo> LoadFromFile(string filePath, string uuid);
+
+        /// <summary>
         /// 批量加载音频
         /// </summary>
         Task<List<GameAudioInfo>> LoadFromDirectory(string directoryPath, bool recursive = false);

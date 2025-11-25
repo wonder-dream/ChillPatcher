@@ -102,6 +102,10 @@ namespace ChillPatcher
                 logger.LogInfo($"[Playlist] 根目录: {rootPath}");
                 logger.LogInfo($"[Playlist] 递归深度: {PluginConfig.PlaylistRecursionDepth.Value}");
                 
+                // ✅ 初始化数据库
+                UIFramework.Data.CustomPlaylistDataManager.Initialize(rootPath);
+                logger.LogInfo($"[Playlist] 数据库已初始化");
+                
                 // 创建扫描器
                 var playlistScanner = new PlaylistDirectoryScanner(
                     rootPath,

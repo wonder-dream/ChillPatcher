@@ -37,7 +37,6 @@ namespace ChillPatcher.Patches.UIFramework
                 if (removeInteractableUI != null)
                 {
                     removeInteractableUI.gameObject.SetActive(false);
-                    Plugin.Log.LogDebug($"[HideDeleteButton] Hidden delete button for playlist song: {audioInfo.Title}");
                 }
             }
             catch (System.Exception ex)

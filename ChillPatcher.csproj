@@ -6,7 +6,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <AssemblyName>ChillPatcher</AssemblyName>
     <OutputPath>bin\</OutputPath>
   </PropertyGroup>
@@ -21,6 +21,7 @@
   <ItemGroup>
     <!-- NuGet Packages -->
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
   </ItemGroup>
 
   <ItemGroup>
@@ -106,6 +107,10 @@
       <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\R3.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="R3.Unity">
+      <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\R3.Unity.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="DOTween">
       <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\DOTween.dll</HintPath>
       <Private>False</Private>
@@ -130,15 +135,27 @@
     <MakeDir Directories="$(RimeSharedDir)" />
     <MakeDir Directories="$(RimeUserDir)" />
     <MakeDir Directories="$(OpenCCDir)" />
+    <MakeDir Directories="$(PluginDir)x64\" />
+    <MakeDir Directories="$(PluginDir)x86\" />
     
     <!-- Copy main DLL -->
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginDir)" />
     
     <!-- Copy TagLibSharp.dll -->
     <ItemGroup>
-      <TagLibFiles Include="$(NuGetPackageRoot)taglibsharp\2.3.0\lib\netstandard2.0\TagLibSharp.dll" />
+      <TagLibFiles Include="$(OutputPath)TagLibSharp.dll" />
     </ItemGroup>
-    <Copy SourceFiles="@(TagLibFiles)" DestinationFolder="$(PluginDir)" Condition="Exists('$(NuGetPackageRoot)taglibsharp\2.3.0\lib\netstandard2.0\TagLibSharp.dll')" />
+    <Copy SourceFiles="@(TagLibFiles)" DestinationFolder="$(PluginDir)" Condition="Exists('$(OutputPath)TagLibSharp.dll')" />
+    
+    <!-- Copy System.Data.SQLite DLLs (从构建输出目录) -->
+    <ItemGroup>
+      <SQLiteFiles Include="$(OutputPath)System.Data.SQLite.dll" />
+      <SQLiteNativeX64 Include="$(OutputPath)x64\SQLite.Interop.dll" />
+      <SQLiteNativeX86 Include="$(OutputPath)x86\SQLite.Interop.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SQLiteFiles)" DestinationFolder="$(PluginDir)" Condition="Exists('$(OutputPath)System.Data.SQLite.dll')" />
+    <Copy SourceFiles="@(SQLiteNativeX64)" DestinationFiles="$(PluginDir)x64\SQLite.Interop.dll" Condition="Exists('$(OutputPath)x64\SQLite.Interop.dll')" />
+    <Copy SourceFiles="@(SQLiteNativeX86)" DestinationFiles="$(PluginDir)x86\SQLite.Interop.dll" Condition="Exists('$(OutputPath)x86\SQLite.Interop.dll')" />
     
     <!-- Copy rime.dll -->
     <Copy SourceFiles="$(RimeDllPath)" DestinationFolder="$(PluginDir)" Condition="Exists('$(RimeDllPath)')" />

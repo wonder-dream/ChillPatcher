@@ -30,6 +30,8 @@ namespace ChillPatcher
         public static ConfigEntry<bool> HideEmptyTags { get; private set; }
         public static ConfigEntry<float> TagDropdownHeightMultiplier { get; private set; }
         public static ConfigEntry<float> TagDropdownHeightOffset { get; private set; }
+        public static ConfigEntry<int> MaxTagsInTitle { get; private set; }
+        public static ConfigEntry<bool> CleanInvalidMusicData { get; private set; }
 
         public static void Initialize(ConfigFile config)
         {
@@ -199,6 +201,28 @@ namespace ChillPatcher
                     "示例：50 = 增加50像素, -50 = 减少50像素",
                     new AcceptableValueRange<float>(-500f, 500f)
                 )
+            );
+
+            MaxTagsInTitle = config.Bind(
+                "UI",
+                "MaxTagsInTitle",
+                3,
+                new ConfigDescription(
+                    "标签下拉框标题最多显示的标签数量\n" +
+                    "超过此数量将显示'等其他'\n" +
+                    "默认：3",
+                    new AcceptableValueRange<int>(1, 10)
+                )
+            );
+
+            CleanInvalidMusicData = config.Bind(
+                "Maintenance",
+                "CleanInvalidMusicData",
+                false,
+                "清理无效的音乐数据（启动时执行一次）\n" +
+                "删除收藏列表和本地音乐列表中不存在的文件\n" +
+                "执行后会自动关闭此选项\n" +
+                "默认：false"
             );
 
             Plugin.Logger.LogInfo("配置文件已加载:");

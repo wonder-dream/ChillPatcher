@@ -29,6 +29,11 @@ namespace ChillPatcher.UIFramework.Audio
 
         public async Task<GameAudioInfo> LoadFromFile(string filePath)
         {
+            return await LoadFromFile(filePath, Guid.NewGuid().ToString());
+        }
+
+        public async Task<GameAudioInfo> LoadFromFile(string filePath, string uuid)
+        {
             if (!File.Exists(filePath))
             {
                 BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogWarning($"File not found: {filePath}");
@@ -44,7 +49,7 @@ namespace ChillPatcher.UIFramework.Audio
             try
             {
                 var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
-                logger.LogInfo($"[AudioLoader] Loading file: {filePath}");
+                logger.LogInfo($"[AudioLoader] Loading file: {filePath} (UUID: {uuid})");
                 
                 // ✅ 游戏直接传Windows路径，不需要转换为file:/// URI！
                 // 使用Harmony反向补丁调用private方法
@@ -72,7 +77,7 @@ namespace ChillPatcher.UIFramework.Audio
                 
                 audioClip.name = title;
                 
-                // 完全按照游戏的方式创建GameAudioInfo
+                // 完全按照游戏的方式创建GameAudioInfo，使用提供的UUID
                 return new GameAudioInfo
                 {
                     IsUnlocked = true,
@@ -82,7 +87,7 @@ namespace ChillPatcher.UIFramework.Audio
                     Title = title,
                     Credit = credit,
                     LocalPath = filePath,
-                    UUID = Guid.NewGuid().ToString()
+                    UUID = uuid  // ✅ 使用提供的UUID
                 };
             }
             catch (Exception ex)

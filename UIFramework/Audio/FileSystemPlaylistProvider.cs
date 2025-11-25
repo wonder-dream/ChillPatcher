@@ -138,6 +138,7 @@ namespace ChillPatcher.UIFramework.Audio
         private async Task<List<GameAudioInfo>> BuildSongsFromCache()
         {
             var songs = new List<GameAudioInfo>();
+            bool needsUpdate = false; // 标记是否需要更新缓存
 
             foreach (var cachedSong in _cacheData.Songs)
             {
@@ -154,7 +155,18 @@ namespace ChillPatcher.UIFramework.Audio
 
                 try
                 {
-                    var audioInfo = await _audioLoader.LoadFromFile(filePath);
+                    // ✅ 检查缓存中是否有UUID
+                    string uuid = cachedSong.UUID;
+                    if (string.IsNullOrEmpty(uuid))
+                    {
+                        // 生成新UUID并标记需要更新
+                        uuid = Guid.NewGuid().ToString();
+                        cachedSong.UUID = uuid;
+                        needsUpdate = true;
+                        BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogInfo($"[Playlist] 为歌曲 '{cachedSong.FileName}' 生成新UUID: {uuid}");
+                    }
+
+                    var audioInfo = await _audioLoader.LoadFromFile(filePath, uuid);
 
                     if (audioInfo != null)
                     {
@@ -171,6 +183,21 @@ namespace ChillPatcher.UIFramework.Audio
                 catch (Exception ex)
                 {
                     BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogError($"[Playlist] 加载歌曲失败 '{cachedSong.FileName}': {ex.Message}");
+                }
+            }
+
+            // ✅ 如果有歌曲缺少UUID，更新缓存文件
+            if (needsUpdate && PluginConfig.AutoGeneratePlaylistJson.Value)
+            {
+                try
+                {
+                    var json = JsonConvert.SerializeObject(_cacheData, Formatting.Indented);
+                    File.WriteAllText(_playlistJsonPath, json);
+                    BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogInfo($"[Playlist] 缓存已更新UUID: {_playlistJsonPath}");
+                }
+                catch (Exception ex)
+                {
+                    BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogError($"[Playlist] 更新缓存失败: {ex.Message}");
                 }
             }
 
@@ -220,7 +247,8 @@ namespace ChillPatcher.UIFramework.Audio
                         Duration = 0,
                         Enabled = true,
                         Tags = new List<string>(),
-                        FileModifiedAt = fileInfo.LastWriteTime
+                        FileModifiedAt = fileInfo.LastWriteTime,
+                        UUID = song.UUID  // ✅ 保存UUID
                     });
                 }
 

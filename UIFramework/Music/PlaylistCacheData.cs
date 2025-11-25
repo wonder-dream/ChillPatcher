@@ -106,5 +106,11 @@ namespace ChillPatcher.UIFramework.Music
         /// </summary>
         [JsonProperty("fileModifiedAt")]
         public DateTime FileModifiedAt { get; set; }
+
+        /// <summary>
+        /// 歌曲唯一标识符（UUID）- 用于追踪歌曲身份
+        /// </summary>
+        [JsonProperty("uuid")]
+        public string UUID { get; set; }
     }
 }

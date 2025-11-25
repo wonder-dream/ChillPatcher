@@ -137,7 +137,14 @@ namespace ChillPatcher.Patches.UIFramework
             var predefinedTags = GetPredefinedTags(tagsWithoutFavoriteAndCustom);
             var customTags = GetCustomTags(tagsWithoutFavorite);
             
-            Plugin.Log.LogDebug($"[BuildTitle] Predefined tags count: {predefinedTags.Count}, Custom tags count: {customTags.Count}");
+            // ✅ 如果包含Local标签，则忽略自定义标签（因为本地音乐已包含所有自定义标签的歌曲）
+            bool hasLocalTag = predefinedTags.Contains(AudioTag.Local);
+            if (hasLocalTag)
+            {
+                customTags.Clear();
+            }
+            
+            Plugin.Log.LogDebug($"[BuildTitle] Predefined tags count: {predefinedTags.Count}, Custom tags count: {customTags.Count}, Has Local: {hasLocalTag}");
             Plugin.Log.LogDebug($"[BuildTitle] tagsWithoutFavorite: {tagsWithoutFavorite}, tagsWithoutFavoriteAndCustom: {tagsWithoutFavoriteAndCustom}");
             
             if (predefinedTags.Count == 0 && customTags.Count == 0)
@@ -175,6 +182,13 @@ namespace ChillPatcher.Patches.UIFramework
             var customTags = GetCustomTags(tagsWithoutFavorite);
             var favoriteText = GetLocalizeText(audioTagLocalizationMap[AudioTag.Favorite], localizationMaster, instance);
 
+            // ✅ 如果包含Local标签，则忽略自定义标签（因为本地音乐已包含所有自定义标签的歌曲）
+            bool hasLocalTag = predefinedTags.Contains(AudioTag.Local);
+            if (hasLocalTag)
+            {
+                customTags.Clear();
+            }
+
             // 只有收藏（已在前面处理）
             if (predefinedTags.Count == 0 && customTags.Count == 0)
             {
@@ -185,10 +199,10 @@ namespace ChillPatcher.Patches.UIFramework
             if (predefinedTags.Count == 1 && customTags.Count == 0)
             {
                 var tagText = GetLocalizeText(audioTagLocalizationMap[predefinedTags[0]], localizationMaster, instance);
-                return $"{tagText} & {favoriteText}";
+                return $"{favoriteText} & {tagText}";
             }
 
-            // 多个Tag（限制显示前3个）
+            // 多个Tag（收藏显示在最前面）
             var allTagTexts = new List<string>();
             
             // 添加预定义Tag文本
@@ -206,12 +220,13 @@ namespace ChillPatcher.Patches.UIFramework
                 allTagTexts.Add(customTag.DisplayName);
             }
 
-            // 最多显示3个Tag
+            // 获取配置的最大显示数量
+            int maxTags = PluginConfig.MaxTagsInTitle.Value;
             int totalTags = allTagTexts.Count;
-            var displayTags = allTagTexts.Take(3).ToList();
+            var displayTags = allTagTexts.Take(maxTags).ToList();
             
             string tagsText;
-            if (totalTags > 3)
+            if (totalTags > maxTags)
             {
                 tagsText = string.Join(" & ", displayTags) + " 等其他";
             }
@@ -220,7 +235,8 @@ namespace ChillPatcher.Patches.UIFramework
                 tagsText = string.Join(" & ", displayTags);
             }
             
-            return $"{tagsText} & {favoriteText}";
+            // 收藏显示在最前面
+            return $"{favoriteText} & {tagsText}";
         }
 
         /// <summary>
@@ -233,10 +249,11 @@ namespace ChillPatcher.Patches.UIFramework
                 return customTags[0].DisplayName;
             }
 
-            // 最多显示3个
-            var displayTags = customTags.Take(3).Select(t => t.DisplayName).ToList();
+            // 使用配置的最大显示数量
+            int maxTags = PluginConfig.MaxTagsInTitle.Value;
+            var displayTags = customTags.Take(maxTags).Select(t => t.DisplayName).ToList();
             
-            if (customTags.Count > 3)
+            if (customTags.Count > maxTags)
             {
                 return string.Join(" & ", displayTags) + " 等其他";
             }
@@ -293,11 +310,12 @@ namespace ChillPatcher.Patches.UIFramework
                 allTagTexts.Add(customTag.DisplayName);
             }
 
-            // 最多显示3个Tag
+            // 使用配置的最大显示数量
+            int maxTags = PluginConfig.MaxTagsInTitle.Value;
             int totalTags = allTagTexts.Count;
-            var displayTags = allTagTexts.Take(3).ToList();
+            var displayTags = allTagTexts.Take(maxTags).ToList();
             
-            if (totalTags > 3)
+            if (totalTags > maxTags)
             {
                 return string.Join(" & ", displayTags) + " 等其他";
             }

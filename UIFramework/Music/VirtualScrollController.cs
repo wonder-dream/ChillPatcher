@@ -5,6 +5,7 @@ using System.Threading;
 using Bulbul;
 using ObservableCollections;
 using R3;
+using R3.Triggers;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -123,9 +124,6 @@ namespace ChillPatcher.UIFramework.Music
             }
 
             _dataSource = source;
-            
-            BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework")
-                .LogInfo($"[VirtualScroll] SetDataSource: Count={source?.Count ?? 0}, NeedsSubscribe={needsSubscribe}");
 
             if (_dataSource != null)
             {
@@ -170,9 +168,6 @@ namespace ChillPatcher.UIFramework.Music
                 return;
 
             var (start, end) = CalculateVisibleRange();
-            
-            var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
-            logger.LogDebug($"[VirtualScroll] RefreshVisible: range=[{start}, {end}), total={_dataSource.Count}, active={_activeItems.Count}");
 
             // 回收不可见项
             RecycleInvisibleItems(start, end);
@@ -265,8 +260,6 @@ namespace ChillPatcher.UIFramework.Music
             var contentSizeFitter = _contentTransform.GetComponent<UnityEngine.UI.ContentSizeFitter>();
             if (contentSizeFitter != null)
             {
-                BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework")
-                    .LogInfo("[VirtualScroll] Disabling ContentSizeFitter on Content");
                 contentSizeFitter.enabled = false;
             }
             
@@ -275,8 +268,6 @@ namespace ChillPatcher.UIFramework.Music
             var layoutGroup = _contentTransform.GetComponent<UnityEngine.UI.LayoutGroup>();
             if (layoutGroup != null)
             {
-                BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework")
-                    .LogInfo($"[VirtualScroll] Disabling {layoutGroup.GetType().Name} on Content");
                 layoutGroup.enabled = false;
             }
 
@@ -296,11 +287,6 @@ namespace ChillPatcher.UIFramework.Music
             _scrollRect.onValueChanged.AddListener(OnScrollValueChanged);
 
             _isInitialized = true;
-
-            var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
-            logger.LogInfo($"[VirtualScroll] Initialized - ViewportHeight={_viewportTransform.rect.height}, ItemHeight={_itemHeight}");
-            logger.LogInfo($"[VirtualScroll] Expected visible items: {Mathf.CeilToInt(_viewportTransform.rect.height / _itemHeight)}");
-            logger.LogInfo($"[VirtualScroll] Content anchor: min={_contentTransform.anchorMin}, max={_contentTransform.anchorMax}, pivot={_contentTransform.pivot}");
         }
 
         #endregion
@@ -311,9 +297,6 @@ namespace ChillPatcher.UIFramework.Music
         {
             if (Mathf.Abs(position.y - _lastScrollPosition) > 0.001f)
             {
-                var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
-                logger.LogDebug($"[VirtualScroll] Scroll changed: normalizedPos={position.y:F3}, anchoredPos={_contentTransform.anchoredPosition.y:F1}");
-                
                 _lastScrollPosition = position.y;
                 RefreshVisible();
             }
@@ -339,15 +322,6 @@ namespace ChillPatcher.UIFramework.Music
             
             // 计算最后一个可见项的索引（加上缓冲区）
             int end = Mathf.Min(_dataSource.Count, start + visibleCount + _bufferCount * 2);
-
-            // 调试日志
-            var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
-            if (end - start > 50) // 异常情况，打印详细信息
-            {
-                logger.LogWarning($"[VirtualScroll] Suspicious range: start={start}, end={end}, count={end-start}");
-                logger.LogWarning($"  scrollPos={scrollPosition}, viewportH={viewportHeight}, itemH={_itemHeight}");
-                logger.LogWarning($"  visibleCount={visibleCount}, bufferCount={_bufferCount}, totalCount={_dataSource.Count}");
-            }
 
             return (start, end);
         }
@@ -386,6 +360,7 @@ namespace ChillPatcher.UIFramework.Music
                 
                 // 调用Setup初始化按钮（使用游戏原生逻辑）
                 button.Setup(_dataSource[i], _facilityMusic);
+
                 
                 PositionItem(button, i);
 
@@ -414,13 +389,6 @@ namespace ChillPatcher.UIFramework.Music
             // 4. 确保缩放和旋转正确
             rt.localScale = Vector3.one;
             rt.localRotation = Quaternion.identity;
-            
-            // 调试日志（只在前几个项目打印）
-            if (index < 5)
-            {
-                var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
-                logger.LogDebug($"[VirtualScroll] PositionItem[{index}]: anchoredPos={rt.anchoredPosition}, sizeDelta={rt.sizeDelta}");
-            }
         }
 
         private void UpdateContentSize()
@@ -443,11 +411,6 @@ namespace ChillPatcher.UIFramework.Music
             //     UnityEngine.Canvas.ForceUpdateCanvases();
             //     _scrollRect.Rebuild(UnityEngine.UI.CanvasUpdate.PostLayout);
             // }
-            
-            var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
-            logger.LogInfo($"[VirtualScroll] UpdateContentSize: Count={_dataSource.Count}, ItemHeight={_itemHeight}, TotalHeight={totalHeight}");
-            logger.LogInfo($"[VirtualScroll] Content sizeDelta after update: {_contentTransform.sizeDelta}");
-            logger.LogInfo($"[VirtualScroll] Content rect.height: {_contentTransform.rect.height}");
         }
 
         private float CalculateScrollPercentage()
@@ -480,9 +443,6 @@ namespace ChillPatcher.UIFramework.Music
                     // Count变化时，更新内容大小并刷新可见区域
                     UpdateContentSize();
                     RefreshVisible();
-                    
-                    BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework")
-                        .LogDebug($"[VirtualScroll] Data source count changed to {_dataSource.Count}, refreshed visible items");
                 });
         }
 

@@ -49,18 +49,33 @@ namespace ChillPatcher.UIFramework.Music
         public event Action OnTagsChanged;
 
         /// <summary>
-        /// 注册自定义Tag（自动分配位值）
+        /// 注册自定义Tag（自动分配位值，支持重名自动顺延）
         /// </summary>
         public CustomTag RegisterTag(string id, string displayName)
         {
             if (string.IsNullOrEmpty(id))
                 throw new ArgumentException("Tag ID cannot be null or empty");
 
-            // 检查是否已注册
-            if (_customTags.ContainsKey(id))
+            // ✅ 检查是否已注册，如果重名则自动顺延
+            string finalId = id;
+            int suffix = 2;
+            while (_customTags.ContainsKey(finalId))
             {
-                BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogWarning($"[CustomTag] Tag already registered: {id}");
-                return _customTags[id];
+                finalId = $"{id}_{suffix}";
+                suffix++;
+                
+                // 防止无限循环
+                if (suffix > 100)
+                {
+                    throw new InvalidOperationException($"无法为Tag '{id}' 找到可用的ID（已尝试100次）");
+                }
+            }
+
+            // 如果ID被修改，记录日志
+            if (finalId != id)
+            {
+                BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogInfo(
+                    $"[CustomTag] Tag ID冲突，自动顺延: '{id}' → '{finalId}'");
             }
 
             // 检查位数限制
@@ -73,13 +88,13 @@ namespace ChillPatcher.UIFramework.Music
             var bitValue = (AudioTag)(1 << _nextAvailableBit);
             _nextAvailableBit++;
 
-            var tag = new CustomTag(id, displayName, bitValue);
-            _customTags[id] = tag;
+            var tag = new CustomTag(finalId, displayName, bitValue);
+            _customTags[finalId] = tag;
             
             OnTagsChanged?.Invoke();
             
             BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogInfo(
-                $"[CustomTag] Registered: {displayName} (ID: {id}, Bit: {bitValue}, Value: {(int)bitValue})");
+                $"[CustomTag] Registered: {displayName} (ID: {finalId}, Bit: {bitValue}, Value: {(int)bitValue})");
             
             return tag;
         }

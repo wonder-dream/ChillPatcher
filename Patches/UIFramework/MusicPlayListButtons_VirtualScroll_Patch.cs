@@ -97,8 +97,6 @@ namespace ChillPatcher.Patches.UIFramework
                         _holdButtonDefaultScaleField?.SetValue(holdAnim, Vector3.one);
                     }
                 }
-
-                Plugin.Logger.LogDebug($"[MusicPlayListButtons_VirtualScroll_Patch] Reset state and animations for button: {__instance.AudioInfo?.Title}");
             }
             catch (System.Exception ex)
             {

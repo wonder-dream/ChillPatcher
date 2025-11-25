@@ -32,8 +32,6 @@ namespace ChillPatcher.Patches.UIFramework
                 {
                     playButton.onClick.RemoveAllListeners();
                 }
-
-                Plugin.Log.LogDebug("[ReorderPatch] Cleaned up button listeners");
             }
             catch (System.Exception ex)
             {
@@ -41,6 +39,47 @@ namespace ChillPatcher.Patches.UIFramework
             }
         }
 
+        /// <summary>
+        /// Patch MusicPlayListButtons.Start - 阻止访问被销毁的reorderTrigger
+        /// </summary>
+        [HarmonyPatch(typeof(MusicPlayListButtons), "Start")]
+        [HarmonyPrefix]
+        static bool Start_Prefix(MusicPlayListButtons __instance)
+        {
+            if (!UIFrameworkConfig.EnableVirtualScroll.Value)
+                return true; // 不启用虚拟滚动时，执行原方法
+
+            try
+            {
+                // 检查reorderTrigger是否存在
+                var reorderTrigger = Traverse.Create(__instance)
+                    .Field("reorderTrigger")
+                    .GetValue<EventTrigger>();
+
+                if (reorderTrigger == null || reorderTrigger.gameObject == null)
+                {
+                    // reorderTrigger已被销毁，跳过Start方法
+                    // 只初始化必要的部分
+                    var dragInteractableUI = Traverse.Create(__instance)
+                        .Field("_dragInteractableUI")
+                        .GetValue<InteractableUI>();
+                    
+                    if (dragInteractableUI != null)
+                    {
+                        dragInteractableUI.Setup();
+                    }
+                    
+                    return false; // 跳过原Start方法
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Log.LogError($"Error in Start_Prefix: {ex}");
+            }
+
+            return true; // 执行原Start方法
+        }
+        
         /// <summary>
         /// Patch MusicPlayListButtons.Setup - 移除拖动柄
         /// </summary>
@@ -62,7 +101,6 @@ namespace ChillPatcher.Patches.UIFramework
                 {
                     // 直接销毁拖动柄GameObject，让HorizontalLayoutGroup重新布局
                     Object.Destroy(reorderTrigger.gameObject);
-                    Plugin.Log.LogDebug($"[ReorderPatch] Removed reorder handle for {audioInfo.Title}");
                 }
             }
             catch (System.Exception ex)

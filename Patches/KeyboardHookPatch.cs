@@ -253,34 +253,48 @@ namespace ChillPatcher.Patches
         }
 
         /// <summary>
-        /// 清理键盘钩子
+        /// 清理键盘钩子 - 直接强制关闭，不需要保存状态
         /// </summary>
         public static void Cleanup()
         {
+            Plugin.Logger.LogInfo("[KeyboardHook] 开始强制清理钩子...");
+            
             isRunning = false;
             
-            // 先卸载钩子
+            // 1. 先卸载钩子句柄
             if (hookId != IntPtr.Zero)
             {
-                UnhookWindowsHookEx(hookId);
+                try
+                {
+                    UnhookWindowsHookEx(hookId);
+                }
+                catch { } // 忽略异常
                 hookId = IntPtr.Zero;
             }
 
-            // 发送退出消息
+            // 2. 直接强制中止线程（不等待）
             if (hookThread != null && hookThread.IsAlive)
             {
-                PostQuitMessage(0);
-                // 不等待线程，让它自然结束
+                try
+                {
+                    hookThread.Abort();
+                }
+                catch { } // 忽略异常
+                hookThread = null;
             }
 
-            // 释放Rime引擎
+            // 3. 直接释放Rime引擎（不管异常）
             if (rimeEngine != null)
             {
-                rimeEngine.Dispose();
+                try
+                {
+                    rimeEngine.Dispose();
+                }
+                catch { } // 忽略异常
                 rimeEngine = null;
             }
 
-            Plugin.Logger.LogInfo("[KeyboardHook] 钩子已清理");
+            Plugin.Logger.LogInfo("[KeyboardHook] 钩子已强制清理完成");
         }
 
         /// <summary>

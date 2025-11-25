@@ -30,6 +30,9 @@ echo   F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chi
 echo.
 echo Files:
 echo   - ChillPatcher.dll
+echo   - System.Data.SQLite.dll
+echo   - x64/SQLite.Interop.dll (x64 native)
+echo   - x86/SQLite.Interop.dll (x86 native)
 echo   - rime.dll (if librime was compiled)
 echo.
 

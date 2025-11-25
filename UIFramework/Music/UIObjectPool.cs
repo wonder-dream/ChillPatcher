@@ -28,22 +28,17 @@ namespace ChillPatcher.UIFramework.Music
         {
             T item;
 
-            if (_pool.Count > 0)
-            {
-                item = _pool.Dequeue();
-                item.gameObject.SetActive(true);
-            }
-            else
-            {
-                var go = Object.Instantiate(_prefab, _parent);
-                item = go.GetComponent<T>();
+            // 最终方案：总是创建新对象，不复用
+            // 原因：ButtonEventObservable的Subject是readonly，无法清空订阅者
+            // 复用会导致事件订阅累积
+            var go = Object.Instantiate(_prefab, _parent);
+            item = go.GetComponent<T>();
 
-                if (item == null)
-                {
-                    BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogError($"Prefab does not have component {typeof(T).Name}");
-                    Object.Destroy(go);
-                    return null;
-                }
+            if (item == null)
+            {
+                BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework").LogError($"Prefab does not have component {typeof(T).Name}");
+                Object.Destroy(go);
+                return null;
             }
 
             _activeObjects.Add(item);
@@ -62,8 +57,11 @@ namespace ChillPatcher.UIFramework.Music
             }
 
             _activeObjects.Remove(item);
-            item.gameObject.SetActive(false);
-            _pool.Enqueue(item);
+            
+            // 最终方案：直接销毁，不复用
+            // 原因：ButtonEventObservable的Subject是readonly，无法清空订阅者
+            // 复用会导致事件订阅累积，必须销毁
+            UnityEngine.Object.Destroy(item.gameObject);
         }
 
         public void Clear()
