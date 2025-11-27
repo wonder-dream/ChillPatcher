@@ -832,11 +832,12 @@ namespace ChillPatcher.Patches
 
     /// <summary>
     /// Patch TMP_InputField 来注入键盘输入和显示Rime候选词
+    /// 
+    /// ✅ 使用 Publicizer 直接访问 KeyPressed 方法（消除反射开销）
     /// </summary>
     [HarmonyPatch(typeof(TMP_InputField), "LateUpdate")]
     public class TMP_InputField_LateUpdate_Patch
     {
-        private static System.Reflection.MethodInfo keyPressedMethod = null;
         
         // 使用字典为每个InputField实例维护独立状态
         private static Dictionary<int, PreeditState> preeditStates = new Dictionary<int, PreeditState>();
@@ -988,20 +989,7 @@ namespace ChillPatcher.Patches
                 string simpleInput = KeyboardHookPatch.GetAndClearInputBuffer();
                 if (!string.IsNullOrEmpty(simpleInput))
                 {
-                    // 获取KeyPressed方法（只获取一次）
-                    if (keyPressedMethod == null)
-                    {
-                        keyPressedMethod = typeof(TMP_InputField).GetMethod("KeyPressed",
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    }
-
-                    if (keyPressedMethod == null)
-                    {
-                        Plugin.Logger.LogError("[桌面输入] 无法获取KeyPressed方法");
-                        return;
-                    }
-
-                    // 调用KeyPressed处理每个字符
+                    // ✅ 直接调用 KeyPressed 处理每个字符（Publicizer 消除反射）
                     foreach (char c in simpleInput)
                     {
                         UnityEngine.Event evt = new UnityEngine.Event();
@@ -1023,7 +1011,7 @@ namespace ChillPatcher.Patches
                             evt.character = c;
                         }
 
-                        keyPressedMethod.Invoke(__instance, new object[] { evt });
+                        __instance.KeyPressed(evt);
                     }
 
                     __instance.ForceLabelUpdate();

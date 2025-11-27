@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Bulbul;
 using HarmonyLib;
 using UnityEngine;
@@ -13,12 +12,12 @@ namespace ChillPatcher.Patches.UIFramework
     /// <summary>
     /// 将播放列表切换按钮的图标替换为当前播放音乐的封面
     /// 保持按钮的所有功能不变
+    /// 
+    /// ✅ 使用 Publicizer 直接访问 private 字段（消除反射开销）
     /// </summary>
     [HarmonyPatch(typeof(MusicUI))]
     public static class MusicUI_AlbumArt_Patch
     {
-        private static FieldInfo _facilityOpenButtonField;
-        private static FieldInfo _facilityMusicField;
         
         // 存储原始图标引用
         private static Sprite _originalDeactiveIcon;
@@ -34,26 +33,6 @@ namespace ChillPatcher.Patches.UIFramework
         
         // 订阅管理
         private static IDisposable _musicPlaySubscription;
-
-        static MusicUI_AlbumArt_Patch()
-        {
-            // 使用反射获取私有字段
-            var type = typeof(MusicUI);
-            _facilityOpenButtonField = type.GetField("_facilityOpenButton", 
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            _facilityMusicField = type.GetField("_facilityMusic", 
-                BindingFlags.NonPublic | BindingFlags.Instance);
-
-            if (_facilityOpenButtonField == null)
-            {
-                Plugin.Logger.LogError("[MusicUI_AlbumArt_Patch] Failed to find _facilityOpenButton field");
-            }
-            
-            if (_facilityMusicField == null)
-            {
-                Plugin.Logger.LogError("[MusicUI_AlbumArt_Patch] Failed to find _facilityMusic field");
-            }
-        }
 
         /// <summary>
         /// 在 Setup 方法执行后初始化封面显示
@@ -71,16 +50,16 @@ namespace ChillPatcher.Patches.UIFramework
 
             try
             {
-                // 获取 _facilityOpenButton
-                var facilityOpenButton = _facilityOpenButtonField?.GetValue(__instance) as Component;
+                // ✅ 直接访问 _facilityOpenButton（Publicizer 消除反射）
+                var facilityOpenButton = __instance._facilityOpenButton;
                 if (facilityOpenButton == null)
                 {
                     Plugin.Logger.LogWarning("[MusicUI_AlbumArt_Patch] Failed to get _facilityOpenButton");
                     return;
                 }
 
-                // 获取 FacilityMusic
-                var facilityMusic = _facilityMusicField?.GetValue(__instance) as FacilityMusic;
+                // ✅ 直接访问 _facilityMusic（Publicizer 消除反射）
+                var facilityMusic = __instance._facilityMusic;
                 if (facilityMusic == null)
                 {
                     Plugin.Logger.LogWarning("[MusicUI_AlbumArt_Patch] Failed to get _facilityMusic");

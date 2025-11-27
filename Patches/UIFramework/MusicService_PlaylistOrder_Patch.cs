@@ -134,8 +134,8 @@ namespace ChillPatcher.Patches.UIFramework
                     return;
 
                 // 检查是否在收藏模式或随机播放模式
-                var currentAudioTag = Traverse.Create(__instance).Property("CurrentAudioTag").GetValue();
-                var currentValue = Traverse.Create(currentAudioTag).Property("CurrentValue").GetValue<AudioTag>();
+                var currentAudioTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag;
+                var currentValue = currentAudioTag.CurrentValue;
                 var isShuffle = Traverse.Create(__instance).Property("IsShuffle").GetValue<bool>();
 
                 // 随机播放不保存顺序

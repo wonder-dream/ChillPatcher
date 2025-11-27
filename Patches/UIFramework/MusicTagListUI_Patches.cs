@@ -211,7 +211,7 @@ namespace ChillPatcher.Patches.UIFramework
                     SetupCustomTagButton(newButton, customTag, tagListUI);
                     
                     // ✅ 同步按钮初始状态 (根据CurrentAudioTag是否包含该位)
-                    var currentTag = musicService.CurrentAudioTag.Value;
+                    var currentTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value;
                     bool isActive = currentTag.HasFlagFast(customTag.BitValue);
                     newButton.SetCheck(isActive);
                     Plugin.Log.LogDebug($"[CustomTag] Button '{customTag.DisplayName}' initial state: {(isActive ? "Checked" : "Unchecked")} (CurrentTag: {currentTag})");
@@ -243,28 +243,26 @@ namespace ChillPatcher.Patches.UIFramework
             button.GetComponent<UnityEngine.UI.Button>()?.onClick.AddListener(() =>
             {
                 // 获取当前Tag状态
-                var currentTag = musicService.CurrentAudioTag.Value;
+                var currentTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value;
                 bool hasTag = currentTag.HasFlagFast(customTag.BitValue);
 
                 // ✅ 使用位运算切换
                 if (hasTag)
                 {
-                    musicService.CurrentAudioTag.Value = currentTag.RemoveFlag(customTag.BitValue);
+                    SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value = currentTag.RemoveFlag(customTag.BitValue);
                     Plugin.Log.LogInfo($"[CustomTag] Removed: {customTag.DisplayName} ({customTag.BitValue})");
                 }
                 else
                 {
-                    musicService.CurrentAudioTag.Value = currentTag.AddFlag(customTag.BitValue);
+                    SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value = currentTag.AddFlag(customTag.BitValue);
                     Plugin.Log.LogInfo($"[CustomTag] Added: {customTag.DisplayName} ({customTag.BitValue})");
                 }
 
                 // 更新按钮UI
                 button.SetCheck(!hasTag);
                 
-                // ✅ 调用SetTitle更新标题显示
-                var setTitleMethod = typeof(MusicTagListUI).GetMethod("SetTitle", 
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                setTitleMethod?.Invoke(tagListUI, null);
+                // ✅ 直接调用 SetTitle 更新标题显示（Publicizer 消除反射）
+                tagListUI.SetTitle();
                 
                 // ✅ CurrentAudioTag变化会自动触发游戏的筛选逻辑！
                 // 不需要手动调用ApplyFilter，游戏已经订阅了ReactiveProperty

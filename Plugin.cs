@@ -228,7 +228,7 @@ namespace ChillPatcher
                             allBits |= tag.BitValue; // 合并所有自定义Tag位
                         }
                         
-                        musicService.CurrentAudioTag.Value = allBits;
+                        SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value = allBits;
                         logger.LogInfo($"[Playlist] 已更新CurrentAudioTag包含所有自定义Tag: {allBits}");
                         
                         // ✅ 一次性重建CurrentPlayList

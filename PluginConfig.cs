@@ -193,7 +193,7 @@ namespace ChillPatcher
             TagDropdownHeightOffset = config.Bind(
                 "UI",
                 "TagDropdownHeightOffset",
-                0f,
+                50f,
                 new ConfigDescription(
                     "Tag下拉框高度偏移量（常数b，单位：像素）\n" +
                     "计算公式：最终高度 = a × 内容实际高度 + b\n" +
@@ -206,7 +206,7 @@ namespace ChillPatcher
             MaxTagsInTitle = config.Bind(
                 "UI",
                 "MaxTagsInTitle",
-                3,
+                2,
                 new ConfigDescription(
                     "标签下拉框标题最多显示的标签数量\n" +
                     "超过此数量将显示'等其他'\n" +

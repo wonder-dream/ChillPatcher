@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Bulbul;
@@ -51,12 +50,9 @@ namespace ChillPatcher.UIFramework.Audio
                 var logger = BepInEx.Logging.Logger.CreateLogSource("ChillUIFramework");
                 logger.LogInfo($"[AudioLoader] Loading file: {filePath} (UUID: {uuid})");
                 
-                // ✅ 游戏直接传Windows路径，不需要转换为file:/// URI！
-                // 使用Harmony反向补丁调用private方法
-                var result = await Patches.UIFramework.GameAudioInfo_ReversePatch.DownloadAudioFile(
-                    filePath,  // 直接使用Windows路径
-                    CancellationToken.None
-                );
+                // ✅ 使用 Publicizer 直接访问 private 方法（消除反射开销）
+                var result = await GameAudioInfo.DownloadAudioFile(filePath, CancellationToken.None);
+                
                 var audioClip = result.Item1;
                 var title = result.Item2;
                 var credit = result.Item3;

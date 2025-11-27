@@ -22,7 +22,12 @@
     <!-- NuGet Packages -->
     <PackageReference Include="TagLibSharp" Version="2.3.0" />
     <PackageReference Include="System.Data.SQLite.Core" Version="1.0.118" />
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.*" PrivateAssets="all" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <GamePath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed</GamePath>
+  </PropertyGroup>
 
   <ItemGroup>
     <!-- BepInEx and Harmony from local references -->
@@ -58,7 +63,7 @@
       <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Unity.TextMeshPro">
+    <Reference Include="Unity.TextMeshPro" Publicize="true">
       <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\Unity.TextMeshPro.dll</HintPath>
       <Private>False</Private>
     </Reference>
@@ -78,7 +83,7 @@
 
   <ItemGroup>
     <!-- Game DLLs -->
-    <Reference Include="Assembly-CSharp">
+    <Reference Include="Assembly-CSharp" Publicize="true">
       <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
     </Reference>
@@ -199,12 +204,31 @@
     </ItemGroup>
     <Copy SourceFiles="@(OpenCCFiles)" DestinationFolder="$(OpenCCDir)" />
     
+    <!-- Copy Native FLAC Decoder DLLs -->
+    <PropertyGroup>
+      <NativePluginDir>$(PluginDir)native\</NativePluginDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(NativePluginDir)x64" Condition="!Exists('$(NativePluginDir)x64')" />
+    <MakeDir Directories="$(NativePluginDir)x86" Condition="!Exists('$(NativePluginDir)x86')" />
+    
+    <ItemGroup>
+      <FlacDecoderX64 Include="$(ProjectDir)bin\native\x64\ChillFlacDecoder.dll" />
+      <FlacDecoderX86 Include="$(ProjectDir)bin\native\x86\ChillFlacDecoder.dll" />
+    </ItemGroup>
+    
+    <Copy SourceFiles="@(FlacDecoderX64)" DestinationFolder="$(NativePluginDir)x64" Condition="Exists('$(ProjectDir)bin\native\x64\ChillFlacDecoder.dll')" />
+    <Copy SourceFiles="@(FlacDecoderX86)" DestinationFolder="$(NativePluginDir)x86" Condition="Exists('$(ProjectDir)bin\native\x86\ChillFlacDecoder.dll')" />
+    
     <Message Text="Deployed to: $(PluginDir)" Importance="high" />
     <Message Text="Copied rime.dll" Importance="high" Condition="Exists('$(RimeDllPath)')" />
     <Message Text="Copied Rime schemas to shared: $(RimeSharedDir)" Importance="high" />
     <Message Text="Copied OpenCC data to: $(OpenCCDir)" Importance="high" />
+    <Message Text="Copied Native FLAC decoder (x64)" Importance="high" Condition="Exists('$(ProjectDir)bin\native\x64\ChillFlacDecoder.dll')" />
+    <Message Text="Copied Native FLAC decoder (x86)" Importance="high" Condition="Exists('$(ProjectDir)bin\native\x86\ChillFlacDecoder.dll')" />
     <Message Text="User data directory: $(RimeUserDir)" Importance="high" />
     <Warning Text="rime.dll not found at $(RimeDllPath)" Condition="!Exists('$(RimeDllPath)')" />
+    <Warning Text="Native FLAC decoder (x64) not found - FLAC decoding will fall back to Unity" Condition="!Exists('$(ProjectDir)bin\native\x64\ChillFlacDecoder.dll')" />
+    <Warning Text="Native FLAC decoder (x86) not found - FLAC decoding will fall back to Unity" Condition="!Exists('$(ProjectDir)bin\native\x86\ChillFlacDecoder.dll')" />
   </Target>
 
 </Project>

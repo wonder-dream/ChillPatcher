@@ -16,3 +16,6 @@
 [submodule "rime-schemas/prelude"]
 	path = rime-schemas/prelude
 	url = https://github.com/rime/rime-prelude.git
+[submodule "NativePlugins/dr_libs"]
+	path = NativePlugins/dr_libs
+	url = https://github.com/mackron/dr_libs.git

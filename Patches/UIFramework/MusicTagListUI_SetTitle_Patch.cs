@@ -34,10 +34,10 @@ namespace ChillPatcher.Patches.UIFramework
                     return true; // 执行原方法
                 }
 
-                Plugin.Log.LogDebug($"[SetTitle] Current tag: {musicService.CurrentAudioTag.Value}");
+                Plugin.Log.LogDebug($"[SetTitle] Current tag: {SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value}");
 
                 // 获取当前Tag
-                AudioTag currentTag = musicService.CurrentAudioTag.Value;
+                AudioTag currentTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value;
                 bool hasFavorite = currentTag.HasFlagFast(AudioTag.Favorite);
                 AudioTag tagsWithoutFavorite = currentTag.RemoveFlag(AudioTag.Favorite);
 

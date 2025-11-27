@@ -93,9 +93,7 @@ namespace ChillPatcher.Patches.UIFramework
             // SaveDataManager.Instance.SaveMusicSetting();
 
             // 更新当前播放列表
-            var currentAudioTag = Traverse.Create(__instance)
-                .Property("CurrentAudioTag")
-                .GetValue<R3.ReactiveProperty<AudioTag>>();
+            var currentAudioTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag;
 
             if (currentAudioTag != null && currentAudioTag.CurrentValue.HasFlagFast(music.Tag))
             {
@@ -185,9 +183,7 @@ namespace ChillPatcher.Patches.UIFramework
             // SaveDataManager.Instance.SaveMusicSetting();
 
             // 更新播放列表
-            var currentAudioTag = Traverse.Create(__instance)
-                .Property("CurrentAudioTag")
-                .GetValue<R3.ReactiveProperty<AudioTag>>();
+            var currentAudioTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag;
 
             // ✅ 检查歌曲的Tag是否匹配当前筛选Tag（支持自定义Tag）
             if (currentAudioTag != null && currentAudioTag.CurrentValue.HasFlagFast(music.Tag))

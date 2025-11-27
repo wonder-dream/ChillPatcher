@@ -93,8 +93,8 @@ namespace ChillPatcher.Patches.UIFramework
                             gameAudioInfo.Tag = gameAudioInfo.Tag & ~AudioTag.Favorite;
                             
                             // 更新播放列表（复制原逻辑）
-                            var currentAudioTag = Traverse.Create(__instance).Property("CurrentAudioTag").GetValue();
-                            var currentValue = Traverse.Create(currentAudioTag).Property("CurrentValue").GetValue<AudioTag>();
+                            var currentAudioTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag;
+                            var currentValue = currentAudioTag.CurrentValue;
                             
                             if (!currentValue.HasFlagFast(gameAudioInfo.Tag))
                             {
