@@ -89,7 +89,19 @@ C:\Users\<你的用户名>\AppData\LocalLow\Nestopi\Chill With You\Player.log
 
 ### 壁纸引擎模式
 
-EnableWallpaperEngineMode更改为是来启动壁纸引擎模式
+```ini
+[WallpaperEngine]
+
+## 是否启用壁纸引擎兼容功能
+## true = 启用离线模式，屏蔽所有Steam在线功能
+## false = 使用游戏原本逻辑（默认）
+## 注意：启用后将强制使用配置的存档，成就不会同步到Steam
+# Setting type: Boolean
+# Default value: false
+EnableWallpaperEngineMode = true
+```
+
+更改此选项来启动壁纸引擎模式
 此模式不需要steam授权,并且可以鼠标点击交互
 
 #### 关于时长和成就
