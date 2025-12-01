@@ -20,16 +20,19 @@
 
   <ItemGroup>
     <!-- Embedded Resources -->
-    <EmbeddedResource Include="defaultcover.png">
+    <EmbeddedResource Include="covers/defaultcover.png">
       <LogicalName>ChillPatcher.Resources.defaultcover.png</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="gamecover1.jpg">
+    <EmbeddedResource Include="covers/localcover.jpg">
+      <LogicalName>ChillPatcher.Resources.localcover.jpg</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="covers/gamecover1.jpg">
       <LogicalName>ChillPatcher.Resources.gamecover1.jpg</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="gamecover2.jpg">
+    <EmbeddedResource Include="covers/gamecover2.jpg">
       <LogicalName>ChillPatcher.Resources.gamecover2.jpg</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="gamecover3.png">
+    <EmbeddedResource Include="covers/gamecover3.png">
       <LogicalName>ChillPatcher.Resources.gamecover3.png</LogicalName>
     </EmbeddedResource>
   </ItemGroup>

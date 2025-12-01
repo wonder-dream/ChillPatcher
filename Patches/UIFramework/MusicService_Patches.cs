@@ -30,10 +30,10 @@ namespace ChillPatcher.Patches.UIFramework
         {
             // ✅ 保存实例引用
             CurrentInstance = __instance;
-            // 检查配置开关
-            if (!UIFrameworkConfig.EnableUnlimitedSongs.Value)
+            // 检查配置开关：启用文件夹歌单或无限歌曲时，移除100首限制
+            if (!UIFrameworkConfig.EnableUnlimitedSongs.Value && !PluginConfig.EnableFolderPlaylists.Value)
             {
-                return true; // 配置关闭，执行原方法（保持100首限制）
+                return true; // 两者都关闭，执行原方法（保持100首限制）
             }
 
             if (music == null)
@@ -129,10 +129,10 @@ namespace ChillPatcher.Patches.UIFramework
             // ✅ 保存实例引用
             CurrentInstance = __instance;
             
-            // 检查配置开关
-            if (!UIFrameworkConfig.EnableUnlimitedSongs.Value)
+            // 检查配置开关：启用文件夹歌单或无限歌曲时，移除100首限制
+            if (!UIFrameworkConfig.EnableUnlimitedSongs.Value && !PluginConfig.EnableFolderPlaylists.Value)
             {
-                return true; // 配置关闭，执行原方法
+                return true; // 两者都关闭，执行原方法
             }
 
             if (music == null || music.PathType != AudioMode.LocalPc || string.IsNullOrEmpty(music.LocalPath))

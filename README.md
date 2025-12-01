@@ -6,6 +6,8 @@
 - 使《Chill With You》游戏正确在 Wallpaper Engine 环境下运行.
 - 添加了游戏内输入法.
 
+![截屏展示](<img/Screenshot 2025-12-01 151422.png>)
+
 ## 🐛 遇到问题？
 
 **请提供日志文件以便排查！**
@@ -31,18 +33,18 @@ C:\Users\<你的用户名>\AppData\LocalLow\Nestopi\Chill With You\Player.log
 - **🇨🇳 中文输入法**：集成 RIME 中州韵输入法引擎，支持拼音、双拼等多种输入方案
 - **🌍 语言切换**：自定义默认语言设置
 - **🎁 DLC 控制**：可选启用或禁用 DLC 功能
-- **🎵 歌曲扩充**：歌曲功能扩充
 
-### 性能优化
-- **⚡ 虚拟滚动**：只渲染可见的音乐列表项，大幅提升性能
-  - 支持 2000+ 首歌曲不卡顿
-  - 内存占用降低 90%+
-  - 滚动流畅丝滑
-
-### 关于歌曲扩充
+### 🎵 音乐播放器增强
 - **📁 文件夹播放列表**：自动扫描音频文件夹，按目录生成播放列表
+- **💿 专辑管理**：二级子文件夹自动识别为专辑，支持专辑封面
 - **🎵 扩展音频格式**：支持 OGG、FLAC、AIFF、.egg
-- **🔢 突破限制**：扩充 AudioTag 到 16 位限制，支持12个额外自定义标签, 可扩充曲目上限
+- **🔢 突破限制**：突破100首歌曲限制，支持12个额外自定义标签
+- **⚡ 虚拟滚动**：只渲染可见的音乐列表项，支持 2000+ 首歌曲
+
+### 🎨 UI 优化
+- **🖼️ 专辑封面显示**：播放列表显示专辑封面，播放时显示当前歌曲封面
+- **📐 UI 重排列**：将游戏 UI 调整为更接近音乐播放器的布局
+- **📜 专辑分组**：歌曲按专辑分组显示，支持专辑折叠/展开
 
 ## 📦 安装方式
 
@@ -121,15 +123,13 @@ C:\Users\<你的用户名>\AppData\LocalLow\Nestopi\Chill With You\SaveData\Rele
 ```ini
 [Features]
 
-## 无限的歌曲导入(不开也可以用文件夹无限导入,用于破解官方导入限制)
-## 可能影响存档兼容性
+## 无限的歌曲导入(开启文件夹歌单时自动生效)
 ## Enable unlimited song import (may affect save compatibility)
 # Setting type: Boolean
 # Default value: false
 EnableUnlimitedSongs = false
 
 ## 不限歌曲导入格式(不开也可以用文件夹导入,用于破解官方导入限制)
-## 可能影响存档兼容性
 ## Enable extended audio formats (OGG, FLAC, AIFF)
 # Setting type: Boolean
 # Default value: false
@@ -146,6 +146,24 @@ EnableVirtualScroll = true
 # Setting type: Boolean
 # Default value: true
 EnableFolderPlaylists = true
+
+## 专辑分隔符（在播放列表中显示专辑头）
+## Enable album separators in playlist view
+# Setting type: Boolean
+# Default value: true
+EnableAlbumSeparators = true
+
+## 专辑封面显示（播放时显示当前歌曲封面）
+## Enable album art display during playback
+# Setting type: Boolean
+# Default value: true
+EnableAlbumArtDisplay = true
+
+## UI 重排列（将UI调整为更接近音乐播放器的布局）
+## Enable UI rearrangement for music player style
+# Setting type: Boolean
+# Default value: true
+EnableUIRearrange = true
 ```
 
 ### 虚拟滚动高级设置
@@ -179,17 +197,6 @@ EnableFolderPlaylists = true
 # Default value: playlist
 RootFolder = playlist
 
-## 目录递归扫描深度
-## 0 = 仅扫描根目录
-## 1 = 扫描根目录及其一级子目录
-## 2 = 扫描两级子目录
-## 3 = 扫描三级子目录（默认）
-## 建议范围：0-5
-# Setting type: Int32
-# Default value: 3
-# Acceptable value range: From 0 to 10
-RecursionDepth = 3
-
 ## 是否自动生成playlist.json
 ## true = 首次扫描目录时自动生成JSON缓存（默认）
 ## false = 仅使用已存在的JSON文件
@@ -209,24 +216,29 @@ EnableCache = true
 
 假设你的音乐文件夹结构如下：
 ```
-Music/
-├── Pop/
-│   ├── song1.mp3
-│   └── song2.ogg
-└── Rock/
-    ├── album1/
-    │   ├── track1.flac
-    │   └── track2.flac
-    └── album2/
-        └── track3.mp3
+playlist/
+├── 歌单A/                    ← 一级子文件夹 = 歌单
+│   ├── song1.mp3            ← 根目录歌曲归入"其他"专辑
+│   ├── song2.ogg
+│   ├── 专辑1/               ← 二级子文件夹 = 专辑
+│   │   ├── cover.jpg        ← 专辑封面（可选）
+│   │   ├── track1.flac
+│   │   └── track2.flac
+│   └── 专辑2/
+│       └── track3.mp3
+└── 歌单B/
+    └── ...
 
 ```
 
-配置 `RootFolder = Music` 和 `RecursionDepth = 2`，将自动生成以下播放列表：
-- 📁 Pop (2 首)
-- 📁 Rock (1 首) 
-- 📁 Rock/album1 (2 首)
-- 📁 Rock/album2 (1 首)
+配置 `RootFolder = playlist` 后，将自动生成以下播放列表：
+- 📁 歌单A（包含"其他"专辑 + 专辑1 + 专辑2）
+- 📁 歌单B
+
+**注意**：
+- 根目录（playlist/）中的音频文件会自动移动到 `default` 文件夹
+- 一级子文件夹作为歌单，二级子文件夹作为专辑
+- 每个专辑可以有独立的封面图片
 
 **支持的音频格式**：
 - `.mp3` - MP3 (MPEG Audio)
@@ -236,21 +248,33 @@ Music/
 - `.flac` - FLAC (Free Lossless Audio Codec)
 - `.aiff` / `.aif` - AIFF (Audio Interchange File Format)
 
+**专辑封面**：
+
+系统会按以下优先级查找专辑封面：
+1. 专辑目录中的图片文件（按优先级）：
+   - `cover.jpg`, `cover.png`, `cover.jpeg`
+   - `folder.jpg`, `folder.png`
+   - `album.jpg`, `album.png`
+   - `front.jpg`, `front.png`
+2. 音频文件内嵌的封面（如 MP3 的 ID3 标签、FLAC 的 metadata）
+
 **如何添加新歌曲（增量更新）**：
 
-首次运行后，每个歌单文件夹会生成两个文件：
+首次运行后，每个歌单文件夹会生成缓存文件：
 ```
 playlist/
 ├── 我的收藏/
 │   ├── !rescan_playlist    ← 扫描标志文件
 │   ├── playlist.json       ← 歌曲缓存
 │   ├── song1.mp3
-│   └── song2.mp3
+│   └── 专辑1/
+│       ├── cover.jpg       ← 专辑封面
+│       └── track1.mp3
 ```
 
 要添加新歌曲：
-1. 将新的音频文件放入歌单文件夹
-2. 删除该文件夹中的 `!rescan_playlist` 文件
+1. 将新的音频文件放入歌单文件夹或专辑子文件夹
+2. 删除该歌单文件夹中的 `!rescan_playlist` 文件
 3. 重启游戏
 
 系统会：

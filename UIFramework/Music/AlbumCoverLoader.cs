@@ -61,6 +61,10 @@ namespace ChillPatcher.UIFramework.Music
 
         // Sprite 缓存
         private readonly Dictionary<string, Sprite> _spriteCache = new Dictionary<string, Sprite>();
+        
+        // 静态缓存（用于静态方法）
+        private static Sprite _defaultCoverSprite;
+        private static Sprite _localCoverSprite;
 
         public AlbumCoverLoader(PlaylistDatabase database)
         {
@@ -682,6 +686,75 @@ namespace ChillPatcher.UIFramework.Music
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// 获取默认封面 Sprite（用于本地导入等没有封面的情况）
+        /// </summary>
+        /// <returns>默认封面 Sprite</returns>
+        public static Sprite GetDefaultCoverSprite()
+        {
+            // 检查缓存
+            if (_defaultCoverSprite != null)
+                return _defaultCoverSprite;
+
+            try
+            {
+                var texture = LoadEmbeddedCoverTexture("ChillPatcher.Resources.defaultcover.png");
+                if (texture != null)
+                {
+                    var sprite = Sprite.Create(
+                        texture,
+                        new Rect(0, 0, texture.width, texture.height),
+                        new Vector2(0.5f, 0.5f),
+                        100f
+                    );
+                    _defaultCoverSprite = sprite;
+                    Logger.LogDebug("Loaded default cover sprite");
+                    return sprite;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"Error loading default cover: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 获取本地导入歌曲专用封面 Sprite
+        /// </summary>
+        /// <returns>本地封面 Sprite</returns>
+        public static Sprite GetLocalCoverSprite()
+        {
+            // 检查缓存
+            if (_localCoverSprite != null)
+                return _localCoverSprite;
+
+            try
+            {
+                var texture = LoadEmbeddedCoverTexture("ChillPatcher.Resources.localcover.jpg");
+                if (texture != null)
+                {
+                    var sprite = Sprite.Create(
+                        texture,
+                        new Rect(0, 0, texture.width, texture.height),
+                        new Vector2(0.5f, 0.5f),
+                        100f
+                    );
+                    _localCoverSprite = sprite;
+                    Logger.LogDebug("Loaded local cover sprite");
+                    return sprite;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"Error loading local cover: {ex.Message}");
+            }
+
+            // 如果加载失败，返回默认封面
+            return GetDefaultCoverSprite();
         }
     }
 }

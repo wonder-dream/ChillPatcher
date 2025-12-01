@@ -256,10 +256,14 @@ namespace ChillPatcher.Patches.UIFramework
                             UnityEngine.Object.Destroy(albumArtTexture);
                         }
                     }
+                    
+                    // 本地文件但没有封面，使用本地导入专用封面
+                    TryUseDefaultCover(useSquareMode, isLocalImport: true);
+                    return;
                 }
 
-                // 如果没有封面或不是本地文件，尝试使用默认封面
-                TryUseDefaultCover(useSquareMode);
+                // 不是本地文件，使用默认封面
+                TryUseDefaultCover(useSquareMode, isLocalImport: false);
             }
             catch (Exception ex)
             {
@@ -313,12 +317,19 @@ namespace ChillPatcher.Patches.UIFramework
         /// <summary>
         /// 尝试使用默认封面
         /// </summary>
-        private static void TryUseDefaultCover(bool useSquareMode)
+        /// <param name="useSquareMode">是否使用方形模式</param>
+        /// <param name="isLocalImport">是否是本地导入的歌曲</param>
+        private static void TryUseDefaultCover(bool useSquareMode, bool isLocalImport = false)
         {
             try
             {
-                // 加载嵌入的默认封面
-                var texture = AlbumCoverLoader.LoadEmbeddedCoverTexture("ChillPatcher.Resources.defaultcover.png");
+                // 根据是否是本地导入选择不同的封面
+                string resourceName = isLocalImport 
+                    ? "ChillPatcher.Resources.localcover.jpg" 
+                    : "ChillPatcher.Resources.defaultcover.png";
+                
+                // 加载嵌入的封面
+                var texture = AlbumCoverLoader.LoadEmbeddedCoverTexture(resourceName);
                 if (texture != null)
                 {
                     // 如果启用 UI 重排列，使用高分辨率以支持缩放
@@ -348,14 +359,15 @@ namespace ChillPatcher.Patches.UIFramework
                         _iconDeactiveImage.sprite = sprite;
                         _iconActiveImage.sprite = sprite;
                         
-                        Plugin.Logger.LogInfo($"[MusicUI_AlbumArt_Patch] Using default cover, resolution: {resolution}");
+                        var coverType = isLocalImport ? "local import" : "default";
+                        Plugin.Logger.LogInfo($"[MusicUI_AlbumArt_Patch] Using {coverType} cover, resolution: {resolution}");
                         return;
                     }
                 }
             }
             catch (Exception ex)
             {
-                Plugin.Logger.LogWarning($"[MusicUI_AlbumArt_Patch] Error loading default cover: {ex.Message}");
+                Plugin.Logger.LogWarning($"[MusicUI_AlbumArt_Patch] Error loading cover: {ex.Message}");
             }
 
             // 最后的回退：使用原始图标

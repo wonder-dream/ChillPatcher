@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Bulbul;
 using ChillPatcher.UIFramework.Data;
+using UnityEngine;
 
 namespace ChillPatcher.UIFramework.Music
 {
@@ -297,14 +298,26 @@ namespace ChillPatcher.UIFramework.Music
                 }
                 
                 // 加载嵌入的游戏封面
-                var gameCover = _coverLoader.LoadGameCoverFromEmbeddedResource((int)nativeTag);
+                // 对于 Local 标签，使用本地导入专用封面
+                Sprite gameCover;
+                string artistName;
+                if (nativeTag == AudioTag.Local)
+                {
+                    gameCover = AlbumCoverLoader.GetLocalCoverSprite();
+                    artistName = "导入音乐";
+                }
+                else
+                {
+                    gameCover = _coverLoader.LoadGameCoverFromEmbeddedResource((int)nativeTag);
+                    artistName = "Chill With You Game";
+                }
                 
                 var nativeHeader = new AlbumHeaderInfo
                 {
                     AlbumId = nativeAlbumId,
                     DisplayName = tagDisplayName,
-                    Artist = "Chill With You Game",  // 游戏默认歌曲的艺术家
-                    IsOtherAlbum = false,  // 有嵌入封面，不是特殊专辑
+                    Artist = artistName,
+                    IsOtherAlbum = nativeTag == AudioTag.Local && gameCover == null,  // 没有封面时标记为特殊专辑
                     CoverImage = gameCover,
                     EnabledSongCount = enabledCount,
                     TotalSongCount = tagSongs.Count
@@ -396,9 +409,18 @@ namespace ChillPatcher.UIFramework.Music
 
         /// <summary>
         /// 获取歌曲的主要原生Tag（排除Favorite和Local）
+        /// 对于只有Local标签的歌曲，返回Local本身
         /// </summary>
         private static AudioTag GetPrimaryNativeTag(AudioTag tag)
         {
+            // 先检查是否只有 Local 标记（官方导入的本地音乐）
+            // 如果是，返回 Local 让它有自己的分组
+            var cleanTagWithoutFavorite = tag & ~AudioTag.Favorite;
+            if (cleanTagWithoutFavorite == AudioTag.Local)
+            {
+                return AudioTag.Local;
+            }
+            
             // 移除 Favorite 和 Local 标记
             var cleanTag = tag & ~AudioTag.Favorite & ~AudioTag.Local;
             
@@ -427,6 +449,8 @@ namespace ChillPatcher.UIFramework.Music
                     return "特别";
                 case AudioTag.Other:
                     return "其他";
+                case AudioTag.Local:
+                    return "本地音乐";
                 default:
                     return tag.ToString();
             }
