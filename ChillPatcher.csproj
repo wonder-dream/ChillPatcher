@@ -269,6 +269,13 @@
        <VCRuntimeFiles Include="$(ProjectDir)lib\*.dll" /> 
     </ItemGroup>
     <Copy SourceFiles="@(VCRuntimeFiles)" DestinationFolder="$(NativePluginDir)x64" />
+    
+    <!-- Copy License files -->
+    <MakeDir Directories="$(PluginDir)licenses" Condition="!Exists('$(PluginDir)licenses')" />
+    <Copy SourceFiles="$(ProjectDir)LICENSE" DestinationFiles="$(PluginDir)licenses\ChillPatcher-LICENSE.txt" />
+    <Copy SourceFiles="$(ProjectDir)librime\LICENSE" DestinationFiles="$(PluginDir)licenses\librime-LICENSE.txt" Condition="Exists('$(ProjectDir)librime\LICENSE')" />
+    <Copy SourceFiles="$(ProjectDir)NativePlugins\dr_libs\LICENSE" DestinationFiles="$(PluginDir)licenses\dr_libs-LICENSE.txt" Condition="Exists('$(ProjectDir)NativePlugins\dr_libs\LICENSE')" />
+    
     <Message Text="Deployed to: $(PluginDir)" Importance="high" />
     <Message Text="Copied rime.dll" Importance="high" Condition="Exists('$(RimeDllPath)')" />
     <Message Text="Copied Rime schemas to shared: $(RimeSharedDir)" Importance="high" />
@@ -276,6 +283,7 @@
     <Message Text="Copied Native FLAC decoder (x64)" Importance="high" Condition="Exists('$(ProjectDir)bin\native\x64\ChillFlacDecoder.dll')" />
     <!-- <Message Text="Copied Native FLAC decoder (x86)" Importance="high" Condition="Exists('$(ProjectDir)bin\native\x86\ChillFlacDecoder.dll')" /> -->
     <Message Text="Copied Native SMTC bridge (x64)" Importance="high" Condition="Exists('$(ProjectDir)bin\native\x64\ChillSmtcBridge.dll')" />
+    <Message Text="Copied license files to: $(PluginDir)licenses" Importance="high" />
     <Message Text="User data directory: $(RimeUserDir)" Importance="high" />
     <Warning Text="rime.dll not found at $(RimeDllPath)" Condition="!Exists('$(RimeDllPath)')" />
     <Warning Text="Native FLAC decoder (x64) not found - FLAC decoding will fall back to Unity" Condition="!Exists('$(ProjectDir)bin\native\x64\ChillFlacDecoder.dll')" />

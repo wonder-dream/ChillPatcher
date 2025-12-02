@@ -40,6 +40,13 @@ C:\Users\<你的用户名>\AppData\LocalLow\Nestopi\Chill With You\Player.log
 - **🎵 扩展音频格式**：支持 OGG、FLAC、AIFF、.egg
 - **🔢 突破限制**：突破100首歌曲限制，支持12个额外自定义标签
 - **⚡ 虚拟滚动**：只渲染可见的音乐列表项，支持 2000+ 首歌曲
+- **📋 播放队列管理**：支持手动添加歌曲到队列、清空队列等操作
+- **⏮️ 播放历史记录**：支持"上一首"功能，可回溯最近50首播放记录
+- **💾 播放状态恢复**：自动保存并恢复播放进度、队列、历史记录
+
+### 🔊 音频控制
+- **🎛️ 系统媒体控制 (SMTC)**：在 Windows 系统媒体浮窗中显示歌曲信息和封面，支持媒体键控制
+- **🔇 音频回避**：检测到其他应用播放音频时自动降低游戏音量，停止后自动恢复
 
 ### 🎨 UI 优化
 - **🖼️ 专辑封面显示**：播放列表显示专辑封面，播放时显示当前歌曲封面
@@ -84,6 +91,53 @@ C:\Users\<你的用户名>\AppData\LocalLow\Nestopi\Chill With You\Player.log
   - 原生解码器导出流式 API（`OpenFlacStream` / `ReadFlacFrames` / `SeekFlacStream` / `CloseFlacStream`），托管层通过 `Native/FlacDecoder.cs` 的 `FlacStreamReader` 进行安全封装，保证低内存占用与可 seek 行为。
 
 更多详细信息和构建选项请参见 [FlacDecoder](NativePlugins/FlacDecoder/README.md)。
+
+## 📋 播放队列与历史记录
+
+本插件实现了完整的播放队列管理系统，提供类似专业音乐播放器的体验。
+
+### 核心概念
+
+- **播放队列**：待播放的歌曲列表，队列第一个永远是当前正在播放的歌曲
+- **播放历史**：最近播放的歌曲记录（最多50首），支持"上一首"功能
+- **状态恢复**：自动保存并恢复播放进度、队列和历史
+
+### 使用方式
+
+**添加到队列**：
+- 在播放列表中点击歌曲控件，实现"添加到队列"和"下一首播放"
+- 歌曲会被添加到当前播放歌曲之后或当前歌曲之后
+
+**查看队列**：
+- 点击播放界面的"队列"按钮，进入队列视图
+- 可以看到待播放的歌曲和播放历史
+- 可以拖动排序, 移除
+
+**队列操作按钮**（在Tag下拉菜单中）：
+- **清空全部队列**：清空所有待播放歌曲，从播放列表继续播放
+- **清空未来队列**：只清空待播放部分，保留当前歌曲
+- **清空播放历史**：清空历史记录
+
+**上一首/下一首**：
+- 下一首：播放队列中的下一首歌曲
+- 上一首：回溯到历史记录中的上一首
+- 当历史到头时，会继续往前探索播放列表
+
+### 状态自动保存
+
+游戏运行时会自动保存以下状态：
+- 当前播放的歌曲
+- 播放队列中的歌曲
+- 播放历史记录
+- 随机/单曲循环模式
+- 当前选中的播放列表
+
+下次启动游戏时会自动恢复这些状态。
+
+状态文件位置：
+```
+C:\Users\<你的用户名>\AppData\LocalLow\Nestopi\Chill With You\ChillPatcher\playback_state.json
+```
 
 ## ⚙️ 配置选项
 
@@ -287,6 +341,58 @@ playlist/
 - 每个歌单文件夹独立管理，互不影响
 - 只需删除需要更新的文件夹的标志文件
 - 不删除标志文件时，使用缓存快速加载
+
+### 🔊 音频控制
+
+```ini
+[Audio]
+## 是否启用系统音频检测自动静音功能
+## 当检测到其他应用播放音频时，自动降低游戏音乐音量
+## 使用 Windows WASAPI，仅在 Windows 上有效
+# Setting type: Boolean
+# Default value: false
+EnableAutoMuteOnOtherAudio = false
+
+## 检测到其他音频时的目标音量（0-1）
+## 0 = 完全静音
+## 0.1 = 降低到10%（默认）
+# Setting type: Float
+# Default value: 0.1
+AutoMuteVolumeLevel = 0.1
+
+## 检测其他音频的间隔（秒）
+## 默认：1秒
+# Setting type: Float
+# Default value: 1.0
+AudioDetectionInterval = 1.0
+
+## 恢复音量的淡入时间（秒）
+# Setting type: Float
+# Default value: 1.0
+AudioResumeFadeInDuration = 1.0
+
+## 降低音量的淡出时间（秒）
+# Setting type: Float
+# Default value: 0.3
+AudioMuteFadeOutDuration = 0.3
+
+## 是否启用系统媒体控制功能 (SMTC)
+## 在系统媒体浮窗中显示播放信息，支持媒体键控制
+## 需要 ChillSmtcBridge.dll，仅在 Windows 10/11 上有效
+# Setting type: Boolean
+# Default value: false
+EnableSystemMediaTransport = false
+```
+
+**音频回避功能说明**：
+- 当你在看视频、语音通话或使用其他应用播放音频时，游戏音乐会自动降低音量
+- 其他音频停止后，游戏音乐会平滑恢复原音量
+- 可调整检测间隔和淡入淡出时间
+
+**系统媒体控制 (SMTC) 功能说明**：
+- 在 Windows 系统媒体浮窗中显示当前播放的歌曲信息和封面
+- 支持使用键盘媒体键控制：播放/暂停、上一首、下一首
+- 支持使用系统音量 OSD 控制播放
 
 ### 语言设置
 
