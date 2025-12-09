@@ -20,16 +20,19 @@ namespace ChillPatcher.Patches.UIFramework
     public class MusicTagListUI_Patches
     {
         private static List<GameObject> _customTagButtons = new List<GameObject>();
-        
+
         // 队列操作按钮
         private static GameObject _clearAllQueueButton;
         private static GameObject _clearFutureQueueButton;
         private static GameObject _clearHistoryButton;
-        
+
+        // 网易云退出登录按钮
+        private static GameObject _neteaseLogoutButton;
+
         // TodoSwitchFinishButton 缓存
         private static GameObject _todoSwitchFinishButton;
         private static bool _todoSwitchFinishButtonWasActive = false;
-        
+
         // 缓存的原始状态
         private static MusicTagListUI _cachedTagListUI;
         private static bool _isQueueMode = false;
@@ -45,7 +48,7 @@ namespace ChillPatcher.Patches.UIFramework
             {
                 // 检查是否有模块注册了标签
                 bool hasModuleTags = TagRegistry.Instance?.GetAllTags()?.Count > 0;
-                
+
                 // 1. 隐藏空Tag功能
                 if (PluginConfig.HideEmptyTags.Value)
                 {
@@ -58,12 +61,15 @@ namespace ChillPatcher.Patches.UIFramework
                     AddCustomTagButtons(__instance);
                 }
 
+                // 2.5. 添加网易云退出登录按钮（如果已登录）
+                AddNeteaseLogoutButton(__instance);
+
                 // 3. 更新下拉框高度
                 if (PluginConfig.HideEmptyTags.Value || hasModuleTags)
                 {
                     UpdateDropdownHeight(__instance);
                 }
-                
+
                 // 4. 打印按钮高度调试信息
                 DebugPrintButtonHeights(__instance);
             }
@@ -72,7 +78,7 @@ namespace ChillPatcher.Patches.UIFramework
                 Plugin.Log.LogError($"Error in MusicTagListUI_Patches.Setup_Postfix: {ex}");
             }
         }
-        
+
         /// <summary>
         /// 刷新自定义 Tag 按钮（供模块在运行时添加 Tag 后调用）
         /// </summary>
@@ -86,7 +92,7 @@ namespace ChillPatcher.Patches.UIFramework
                     Plugin.Log.LogWarning("[RefreshCustomTagButtons] Cannot find MusicTagListUI");
                     return;
                 }
-                
+
                 // 检查是否有模块注册了标签
                 bool hasModuleTags = TagRegistry.Instance?.GetAllTags()?.Count > 0;
                 if (!hasModuleTags)
@@ -94,13 +100,13 @@ namespace ChillPatcher.Patches.UIFramework
                     Plugin.Log.LogDebug("[RefreshCustomTagButtons] No module tags registered");
                     return;
                 }
-                
+
                 // 重新添加自定义 Tag 按钮
                 AddCustomTagButtons(tagListUI);
-                
+
                 // 更新下拉框高度
                 UpdateDropdownHeight(tagListUI);
-                
+
                 Plugin.Log.LogInfo("[RefreshCustomTagButtons] Custom tag buttons refreshed");
             }
             catch (System.Exception ex)
@@ -108,7 +114,7 @@ namespace ChillPatcher.Patches.UIFramework
                 Plugin.Log.LogError($"Error in RefreshCustomTagButtons: {ex}");
             }
         }
-        
+
         /// <summary>
         /// 打印按钮高度调试信息（延迟执行以确保布局已更新）
         /// </summary>
@@ -117,33 +123,33 @@ namespace ChillPatcher.Patches.UIFramework
             // 延迟执行
             DebugPrintButtonHeightsAsync(tagListUI).Forget();
         }
-        
+
         private static async UniTaskVoid DebugPrintButtonHeightsAsync(MusicTagListUI tagListUI)
         {
             // 等待2帧让布局更新
             await UniTask.DelayFrame(2);
-            
+
             try
             {
                 var pulldown = Traverse.Create(tagListUI).Field("_pulldown").GetValue<PulldownListUI>();
                 if (pulldown == null) return;
-                
+
                 var pullDownParentRect = Traverse.Create(pulldown).Field("_pullDownParentRect").GetValue<RectTransform>();
                 if (pullDownParentRect == null) return;
-                
+
                 var tagListContainer = pullDownParentRect.Find("TagList");
                 if (tagListContainer == null) return;
-                
+
                 // 强制刷新布局
                 Canvas.ForceUpdateCanvases();
                 LayoutRebuilder.ForceRebuildLayoutImmediate(tagListContainer as RectTransform);
-                
+
                 var layout = tagListContainer.GetComponent<VerticalLayoutGroup>();
                 if (layout != null)
                 {
                     Plugin.Log.LogInfo($"[DebugLayout] VerticalLayoutGroup: spacing={layout.spacing}, padding=(T:{layout.padding.top}, B:{layout.padding.bottom}, L:{layout.padding.left}, R:{layout.padding.right})");
                 }
-                
+
                 // 使用ContentSizeFitter的preferredSize
                 var contentSizeFitter = tagListContainer.GetComponent<ContentSizeFitter>();
                 if (contentSizeFitter != null)
@@ -151,31 +157,31 @@ namespace ChillPatcher.Patches.UIFramework
                     var layoutElement = tagListContainer.GetComponent<LayoutElement>();
                     Plugin.Log.LogInfo($"[DebugLayout] ContentSizeFitter found, mode: H={contentSizeFitter.horizontalFit}, V={contentSizeFitter.verticalFit}");
                 }
-                
+
                 var buttons = Traverse.Create(tagListUI).Field("buttons").GetValue<MusicTagListButton[]>();
                 if (buttons != null && buttons.Length >= 2)
                 {
                     // 统计可见按钮
                     var visibleButtons = buttons.Where(b => b != null && b.gameObject.activeSelf).ToArray();
                     Plugin.Log.LogInfo($"[DebugLayout] Total buttons: {buttons.Length}, Visible: {visibleButtons.Length}");
-                    
+
                     if (visibleButtons.Length >= 2)
                     {
                         var btn1 = visibleButtons[0];
                         var btn2 = visibleButtons[1];
-                        
+
                         var rect1 = btn1.GetComponent<RectTransform>();
                         var rect2 = btn2.GetComponent<RectTransform>();
-                        
+
                         if (rect1 != null && rect2 != null)
                         {
                             Plugin.Log.LogInfo($"[DebugLayout] Button1 '{btn1.name}': position={rect1.anchoredPosition}, size={rect1.rect.size}, localPos={rect1.localPosition}");
                             Plugin.Log.LogInfo($"[DebugLayout] Button2 '{btn2.name}': position={rect2.anchoredPosition}, size={rect2.rect.size}, localPos={rect2.localPosition}");
-                            
+
                             // 计算实际高度差（Y坐标差值的绝对值）
                             float heightDiff = Mathf.Abs(rect1.localPosition.y - rect2.localPosition.y);
                             Plugin.Log.LogInfo($"[DebugLayout] Height difference between buttons: {heightDiff}");
-                            
+
                             // 计算真实按钮高度（包含spacing）
                             float buttonHeight = rect1.rect.height;
                             Plugin.Log.LogInfo($"[DebugLayout] Single button height: {buttonHeight}");
@@ -183,14 +189,14 @@ namespace ChillPatcher.Patches.UIFramework
                         }
                     }
                 }
-                
+
                 // 打印TagList容器的实际大小
                 var tagListRect = tagListContainer as RectTransform;
                 if (tagListRect != null)
                 {
                     Plugin.Log.LogInfo($"[DebugLayout] TagList container size: {tagListRect.rect.size}, sizeDelta: {tagListRect.sizeDelta}");
                 }
-                
+
                 // 打印原始下拉框高度设置
                 float openHeight = Traverse.Create(pulldown).Field("_openPullDownSizeDeltaY").GetValue<float>();
                 Plugin.Log.LogInfo($"[DebugLayout] Original _openPullDownSizeDeltaY: {openHeight}");
@@ -305,7 +311,7 @@ namespace ChillPatcher.Patches.UIFramework
                             // 保存布局和样式信息
                             var oldRect = oldTagName.GetComponent<RectTransform>();
                             var oldText = oldTagName.GetComponent<TMPro.TMP_Text>();
-                            
+
                             // 记录位置信息
                             Vector2 anchorMin = oldRect.anchorMin;
                             Vector2 anchorMax = oldRect.anchorMax;
@@ -313,7 +319,7 @@ namespace ChillPatcher.Patches.UIFramework
                             Vector2 sizeDelta = oldRect.sizeDelta;
                             Vector2 pivot = oldRect.pivot;
                             Vector3 localScale = oldRect.localScale;
-                            
+
                             // 记录文本样式
                             TMPro.TMP_FontAsset font = oldText.font;
                             float fontSize = oldText.fontSize;
@@ -323,12 +329,12 @@ namespace ChillPatcher.Patches.UIFramework
                             float fontSizeMin = oldText.fontSizeMin;
                             float fontSizeMax = oldText.fontSizeMax;
                             bool raycastTarget = oldText.raycastTarget;
-                            
-                        // 销毁旧的TagName（带本地化组件）
-                        UnityEngine.Object.Destroy(oldTagName.gameObject);                            // 创建新的TagName（不带本地化组件）
+
+                            // 销毁旧的TagName（带本地化组件）
+                            UnityEngine.Object.Destroy(oldTagName.gameObject);                            // 创建新的TagName（不带本地化组件）
                             var newTagName = new GameObject("TagName");
                             newTagName.transform.SetParent(buttonsContainer, false);
-                            
+
                             // 复制RectTransform
                             var newRect = newTagName.AddComponent<RectTransform>();
                             newRect.anchorMin = anchorMin;
@@ -337,7 +343,7 @@ namespace ChillPatcher.Patches.UIFramework
                             newRect.sizeDelta = sizeDelta;
                             newRect.pivot = pivot;
                             newRect.localScale = localScale;
-                            
+
                             // 添加TMP_Text（复制样式但不添加本地化组件）
                             var newText = newTagName.AddComponent<TMPro.TextMeshProUGUI>();
                             newText.text = customTag.DisplayName;  // ← 设置自定义文本
@@ -349,17 +355,17 @@ namespace ChillPatcher.Patches.UIFramework
                             newText.fontSizeMin = fontSizeMin;
                             newText.fontSizeMax = fontSizeMax;
                             newText.raycastTarget = raycastTarget;
-                            
+
                             // 保存到MusicTagListButton的_text字段
                             Traverse.Create(newButton).Field("_text").SetValue(newText);
-                            
+
                             Plugin.Log.LogInfo($"[CustomTag] Created pure text button: {customTag.DisplayName}");
                         }
                     }
 
                     // ✅ 设置点击事件（直接操作MusicService.CurrentAudioTag）
                     SetupCustomTagButton(newButton, customTag, tagListUI);
-                    
+
                     // ✅ 同步按钮初始状态 (根据CurrentAudioTag是否包含该位)
                     var currentTag = SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value;
                     bool isActive = currentTag.HasFlagFast((AudioTag)customTag.BitValue);
@@ -418,10 +424,10 @@ namespace ChillPatcher.Patches.UIFramework
 
                 // 更新按钮UI
                 button.SetCheck(!hasTag);
-                
+
                 // ✅ 直接调用 SetTitle 更新标题显示（Publicizer 消除反射）
                 tagListUI.SetTitle();
-                
+
                 // ✅ CurrentAudioTag变化会自动触发游戏的筛选逻辑！
                 // 不需要手动调用ApplyFilter，游戏已经订阅了ReactiveProperty
             });
@@ -447,7 +453,7 @@ namespace ChillPatcher.Patches.UIFramework
             {
                 // 选中：先移除其他增长列表，再添加当前
                 var newTag = currentTag;
-                
+
                 // 移除其他增长列表 Tag
                 var otherGrowableTags = tagRegistry.GetGrowableTags();
                 foreach (var otherTag in otherGrowableTags)
@@ -455,17 +461,17 @@ namespace ChillPatcher.Patches.UIFramework
                     if (otherTag.TagId != clickedTag.TagId)
                     {
                         newTag = newTag.RemoveFlag((AudioTag)otherTag.BitValue);
-                        
+
                         // 更新其他增长列表按钮的UI状态
                         UpdateGrowableTagButtonUI(otherTag.TagId, false, tagListUI);
                     }
                 }
-                
+
                 // 添加当前增长列表
                 newTag = newTag.AddFlag((AudioTag)clickedTag.BitValue);
                 SaveDataManager.Instance.MusicSetting.CurrentAudioTag.Value = newTag;
                 tagRegistry.SetCurrentGrowableTag(clickedTag.TagId);
-                
+
                 Plugin.Log.LogInfo($"[GrowableTag] Added (exclusive): {clickedTag.DisplayName}");
             }
         }
@@ -482,6 +488,252 @@ namespace ChillPatcher.Patches.UIFramework
                 btn?.SetCheck(isChecked);
             }
         }
+
+        #region Netease Logout Button
+
+        /// <summary>
+        /// 添加网易云退出登录按钮（如果已登录）
+        /// </summary>
+        private static void AddNeteaseLogoutButton(MusicTagListUI tagListUI)
+        {
+            // 先清理旧按钮
+            if (_neteaseLogoutButton != null)
+            {
+                UnityEngine.Object.Destroy(_neteaseLogoutButton);
+                _neteaseLogoutButton = null;
+            }
+
+            // 检查网易云模块是否已登录（使用反射）
+            var neteaseModule = GetNeteaseModule();
+            if (neteaseModule == null)
+            {
+                Plugin.Log.LogDebug("[NeteaseLogout] Module not found, skip logout button");
+                return;
+            }
+
+            // 使用反射获取 IsLoggedIn 属性
+            var isLoggedInProp = neteaseModule.GetType().GetProperty("IsLoggedIn");
+            if (isLoggedInProp == null)
+            {
+                Plugin.Log.LogDebug("[NeteaseLogout] IsLoggedIn property not found");
+                return;
+            }
+
+            var isLoggedIn = (bool)isLoggedInProp.GetValue(neteaseModule);
+            if (!isLoggedIn)
+            {
+                Plugin.Log.LogDebug("[NeteaseLogout] Not logged in, skip logout button");
+                return;
+            }
+
+            // 获取按钮容器
+            var buttons = Traverse.Create(tagListUI).Field("buttons").GetValue<MusicTagListButton[]>();
+            if (buttons == null || buttons.Length == 0)
+                return;
+
+            var container = buttons[0].transform.parent;
+            var templateButton = buttons[0];
+
+            // 使用反射获取用户名
+            string buttonText = "退出网易云登录";
+            var currentUserProp = neteaseModule.GetType().GetProperty("CurrentUser");
+            if (currentUserProp != null)
+            {
+                var userInfo = currentUserProp.GetValue(neteaseModule);
+                if (userInfo != null)
+                {
+                    // 使用反射获取 Nickname 属性
+                    var nicknameProp = userInfo.GetType().GetProperty("Nickname");
+                    if (nicknameProp != null)
+                    {
+                        var nickname = nicknameProp.GetValue(userInfo) as string;
+                        if (!string.IsNullOrEmpty(nickname))
+                        {
+                            buttonText = $"退出: {nickname}";
+                        }
+                    }
+                }
+            }
+
+            // 创建退出登录按钮
+            _neteaseLogoutButton = CreateLogoutButtonFromTemplate(
+                container,
+                templateButton,
+                "NeteaseLogout",
+                buttonText,
+                () => OnNeteaseLogoutClicked(tagListUI)
+            );
+
+            if (_neteaseLogoutButton != null)
+            {
+                // 强制刷新布局
+                Canvas.ForceUpdateCanvases();
+                LayoutRebuilder.ForceRebuildLayoutImmediate(container as RectTransform);
+                Plugin.Log.LogInfo($"[NeteaseLogout] Created logout button: {buttonText}");
+            }
+        }
+
+        /// <summary>
+        /// 获取网易云模块实例（使用反射，避免直接引用模块程序集）
+        /// </summary>
+        private static object GetNeteaseModule()
+        {
+            try
+            {
+                // 通过 ModuleLoader 获取模块实例
+                var moduleLoader = ChillPatcher.ModuleSystem.ModuleLoader.Instance;
+                if (moduleLoader == null)
+                    return null;
+
+                // 使用 GetModule 方法获取网易云模块（返回 IMusicModule 接口）
+                var module = moduleLoader.GetModule("com.chillpatcher.netease");
+                return module;
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Log.LogDebug($"[NeteaseLogout] Failed to get Netease module: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 从模板创建退出登录按钮
+        /// </summary>
+        private static GameObject CreateLogoutButtonFromTemplate(
+            Transform parent,
+            MusicTagListButton template,
+            string name,
+            string displayText,
+            UnityEngine.Events.UnityAction onClick)
+        {
+            // 克隆模板按钮
+            var buttonObj = UnityEngine.Object.Instantiate(template.gameObject, parent);
+            buttonObj.name = name;
+            buttonObj.SetActive(true);
+
+            // 移除原有的MusicTagListButton行为
+            var tagButton = buttonObj.GetComponent<MusicTagListButton>();
+            if (tagButton != null)
+            {
+                UnityEngine.Object.Destroy(tagButton);
+            }
+
+            // 隐藏复选框
+            var buttonsContainer = buttonObj.transform.Find("Buttons");
+            if (buttonsContainer != null)
+            {
+                var checkBox = buttonsContainer.Find("CheckBox");
+                if (checkBox != null)
+                {
+                    checkBox.gameObject.SetActive(false);
+                }
+
+                // 修改TagName文本
+                var tagName = buttonsContainer.Find("TagName");
+                if (tagName != null)
+                {
+                    var tmpText = tagName.GetComponent<TMP_Text>();
+                    if (tmpText != null)
+                    {
+                        // 移除本地化组件（使用反射避免直接引用）
+                        var localizerType = System.Type.GetType("NestopiSystem.Localization.TMPTextLocalizer, Assembly-CSharp");
+                        if (localizerType != null)
+                        {
+                            var localizer = tagName.GetComponent(localizerType);
+                            if (localizer != null)
+                            {
+                                UnityEngine.Object.Destroy(localizer);
+                            }
+                        }
+
+                        tmpText.text = displayText;
+                        tmpText.color = new Color(1f, 0.6f, 0.6f); // 浅红色，表示退出/注销操作
+                    }
+                }
+            }
+
+            // 添加点击事件
+            var btn = buttonObj.GetComponent<Button>();
+            if (btn != null)
+            {
+                btn.onClick.RemoveAllListeners();
+                btn.onClick.AddListener(onClick);
+            }
+
+            return buttonObj;
+        }
+
+        /// <summary>
+        /// 网易云退出登录按钮点击处理
+        /// </summary>
+        private static void OnNeteaseLogoutClicked(MusicTagListUI tagListUI)
+        {
+            Plugin.Log.LogInfo("[NeteaseLogout] Logout button clicked");
+
+            var neteaseModule = GetNeteaseModule();
+            if (neteaseModule == null)
+            {
+                Plugin.Log.LogWarning("[NeteaseLogout] Netease module not found");
+                return;
+            }
+
+            // 使用反射调用 Logout 方法
+            var logoutMethod = neteaseModule.GetType().GetMethod("Logout");
+            if (logoutMethod == null)
+            {
+                Plugin.Log.LogError("[NeteaseLogout] Logout method not found");
+                return;
+            }
+
+            var success = (bool)logoutMethod.Invoke(neteaseModule, null);
+            if (success)
+            {
+                Plugin.Log.LogInfo("[NeteaseLogout] Successfully logged out");
+
+                // 销毁退出登录按钮
+                if (_neteaseLogoutButton != null)
+                {
+                    UnityEngine.Object.Destroy(_neteaseLogoutButton);
+                    _neteaseLogoutButton = null;
+                }
+
+                // 更新下拉框高度
+                UpdateDropdownHeight(tagListUI);
+
+                // 关闭下拉框
+                var pulldown = Traverse.Create(tagListUI).Field("_pulldown").GetValue<PulldownListUI>();
+                pulldown?.ClosePullDown(true);
+            }
+            else
+            {
+                Plugin.Log.LogError("[NeteaseLogout] Failed to logout");
+            }
+        }
+
+        /// <summary>
+        /// 刷新网易云退出登录按钮（供模块登录成功后调用）
+        /// </summary>
+        public static void RefreshNeteaseLogoutButton()
+        {
+            try
+            {
+                var tagListUI = UnityEngine.Object.FindObjectOfType<MusicTagListUI>();
+                if (tagListUI == null)
+                {
+                    Plugin.Log.LogDebug("[RefreshNeteaseLogoutButton] Cannot find MusicTagListUI");
+                    return;
+                }
+
+                AddNeteaseLogoutButton(tagListUI);
+                UpdateDropdownHeight(tagListUI);
+            }
+            catch (System.Exception ex)
+            {
+                Plugin.Log.LogError($"Error in RefreshNeteaseLogoutButton: {ex}");
+            }
+        }
+
+        #endregion
 
         /// <summary>
         /// 更新下拉框高度
@@ -519,11 +771,15 @@ namespace ChillPatcher.Patches.UIFramework
                         visibleNativeButtonCount++;
                 }
             }
-            
+
             int customButtonCount = _customTagButtons.Count;
-            int totalVisibleButtonCount = visibleNativeButtonCount + customButtonCount;
-            
-            Plugin.Log.LogInfo($"[UpdateDropdownHeight] Native (visible): {visibleNativeButtonCount}, Custom: {customButtonCount}, Total: {totalVisibleButtonCount}");
+
+            // 计算网易云退出按钮数量
+            int neteaseLogoutButtonCount = (_neteaseLogoutButton != null && _neteaseLogoutButton.activeSelf) ? 1 : 0;
+
+            int totalVisibleButtonCount = visibleNativeButtonCount + customButtonCount + neteaseLogoutButtonCount;
+
+            Plugin.Log.LogInfo($"[UpdateDropdownHeight] Native (visible): {visibleNativeButtonCount}, Custom: {customButtonCount}, NeteaseLogout: {neteaseLogoutButtonCount}, Total: {totalVisibleButtonCount}");
 
             // 强制刷新布局（确保自定义按钮也被计算）
             Canvas.ForceUpdateCanvases();
@@ -533,7 +789,7 @@ namespace ChillPatcher.Patches.UIFramework
             // ✅ 直接根据按钮数量计算内容高度
             // 实测数据: 按钮高度=45
             const float buttonHeight = 45f;  // 实测按钮高度
-            
+
             // 公式：finalHeight = a × (按钮数 × 高度) + b
             // a = 系数, b = 用户偏移
             float a = PluginConfig.TagDropdownHeightMultiplier.Value;
@@ -545,9 +801,9 @@ namespace ChillPatcher.Patches.UIFramework
 
             Plugin.Log.LogInfo($"Tag dropdown: {a} × ({totalVisibleButtonCount} × {buttonHeight}) + {b} = {finalHeight:F1}");
         }
-        
+
         #region 队列模式切换
-        
+
         /// <summary>
         /// 切换到队列模式 - 隐藏Tag显示队列操作按钮
         /// </summary>
@@ -555,36 +811,36 @@ namespace ChillPatcher.Patches.UIFramework
         {
             if (_isQueueMode) return;
             _isQueueMode = true;
-            
+
             var tagListUI = UnityEngine.Object.FindObjectOfType<MusicTagListUI>();
             if (tagListUI == null)
             {
                 Plugin.Log.LogWarning("[TagListUI] Cannot find MusicTagListUI");
                 return;
             }
-            
+
             _cachedTagListUI = tagListUI;
-            
+
             // 获取下拉框
             var pulldown = Traverse.Create(tagListUI).Field("_pulldown").GetValue<PulldownListUI>();
             if (pulldown == null) return;
-            
+
             // 关闭下拉框（如果打开的话）
             pulldown.ClosePullDown(true);
-            
+
             // 更改标题为"队列动作"
             pulldown.ChangeSelectContentText("队列动作");
-            
+
             // 获取Tag按钮容器
             var pullDownParentRect = Traverse.Create(pulldown).Field("_pullDownParentRect").GetValue<RectTransform>();
             if (pullDownParentRect == null) return;
-            
+
             var tagListContainer = pullDownParentRect.Find("TagList");
             if (tagListContainer == null) return;
-            
+
             // 隐藏 TodoSwitchFinishButton
             HideTodoSwitchFinishButton(tagListContainer);
-            
+
             // 隐藏所有原生Tag按钮
             var buttons = Traverse.Create(tagListUI).Field("buttons").GetValue<MusicTagListButton[]>();
             if (buttons != null)
@@ -595,23 +851,23 @@ namespace ChillPatcher.Patches.UIFramework
                         btn.gameObject.SetActive(false);
                 }
             }
-            
+
             // 隐藏自定义Tag按钮
             foreach (var btn in _customTagButtons)
             {
                 if (btn != null)
                     btn.SetActive(false);
             }
-            
+
             // 创建队列操作按钮（直接添加到容器）并获取按钮数量
             int queueButtonCount = CreateQueueButtons(tagListContainer);
-            
+
             // 更新下拉框高度（根据实际创建的按钮数量）
             UpdateDropdownHeightForQueueMode(pulldown, queueButtonCount);
-            
+
             Plugin.Log.LogInfo($"[TagListUI] Switched to queue mode with {queueButtonCount} buttons");
         }
-        
+
         /// <summary>
         /// 切换回正常模式 - 恢复Tag显示
         /// </summary>
@@ -619,17 +875,17 @@ namespace ChillPatcher.Patches.UIFramework
         {
             if (!_isQueueMode) return;
             _isQueueMode = false;
-            
+
             var tagListUI = _cachedTagListUI ?? UnityEngine.Object.FindObjectOfType<MusicTagListUI>();
             if (tagListUI == null) return;
-            
+
             // 获取下拉框
             var pulldown = Traverse.Create(tagListUI).Field("_pulldown").GetValue<PulldownListUI>();
             if (pulldown == null) return;
-            
+
             // 关闭下拉框
             pulldown.ClosePullDown(true);
-            
+
             // 销毁队列操作按钮
             if (_clearAllQueueButton != null)
             {
@@ -646,10 +902,10 @@ namespace ChillPatcher.Patches.UIFramework
                 UnityEngine.Object.Destroy(_clearHistoryButton);
                 _clearHistoryButton = null;
             }
-            
+
             // 恢复 TodoSwitchFinishButton
             ShowTodoSwitchFinishButton();
-            
+
             // 恢复原生Tag按钮
             var buttons = Traverse.Create(tagListUI).Field("buttons").GetValue<MusicTagListButton[]>();
             if (buttons != null)
@@ -660,29 +916,29 @@ namespace ChillPatcher.Patches.UIFramework
                         btn.gameObject.SetActive(true);
                 }
             }
-            
+
             // 恢复自定义Tag按钮
             foreach (var btn in _customTagButtons)
             {
                 if (btn != null)
                     btn.SetActive(true);
             }
-            
+
             // 重新应用隐藏空Tag
             if (PluginConfig.HideEmptyTags.Value)
             {
                 HideEmptyTags(tagListUI);
             }
-            
+
             // 恢复标题
             tagListUI.SetTitle();
-            
+
             // 更新下拉框高度
             UpdateDropdownHeight(tagListUI);
-            
+
             Plugin.Log.LogInfo("[TagListUI] Switched to normal mode");
         }
-        
+
         /// <summary>
         /// 创建队列操作按钮（克隆原生Tag按钮样式）
         /// </summary>
@@ -693,7 +949,7 @@ namespace ChillPatcher.Patches.UIFramework
         private static int CreateQueueButtons(Transform container)
         {
             int buttonCount = 0;
-            
+
             // 如果已存在，先销毁
             if (_clearAllQueueButton != null)
             {
@@ -710,7 +966,7 @@ namespace ChillPatcher.Patches.UIFramework
                 UnityEngine.Object.Destroy(_clearHistoryButton);
                 _clearHistoryButton = null;
             }
-            
+
             // 获取原生按钮作为模板
             var buttons = Traverse.Create(_cachedTagListUI).Field("buttons").GetValue<MusicTagListButton[]>();
             if (buttons == null || buttons.Length == 0)
@@ -718,9 +974,9 @@ namespace ChillPatcher.Patches.UIFramework
                 Plugin.Log.LogError("[CreateQueueButtons] No template button found");
                 return buttonCount;
             }
-            
+
             var templateButton = buttons[0];
-            
+
             // 创建"清空全部队列"按钮
             _clearAllQueueButton = CreateQueueButtonFromTemplate(
                 container,
@@ -730,7 +986,7 @@ namespace ChillPatcher.Patches.UIFramework
                 OnClearAllQueueClicked
             );
             if (_clearAllQueueButton != null) buttonCount++;
-            
+
             // 创建"清空未来队列"按钮
             _clearFutureQueueButton = CreateQueueButtonFromTemplate(
                 container,
@@ -740,7 +996,7 @@ namespace ChillPatcher.Patches.UIFramework
                 OnClearFutureQueueClicked
             );
             if (_clearFutureQueueButton != null) buttonCount++;
-            
+
             // 创建"清空播放历史"按钮
             _clearHistoryButton = CreateQueueButtonFromTemplate(
                 container,
@@ -750,36 +1006,36 @@ namespace ChillPatcher.Patches.UIFramework
                 OnClearHistoryClicked
             );
             if (_clearHistoryButton != null) buttonCount++;
-            
+
             // 强制刷新布局
             Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(container as RectTransform);
-            
+
             return buttonCount;
         }
-        
+
         /// <summary>
         /// 从模板创建队列操作按钮（保持原生样式）
         /// </summary>
         private static GameObject CreateQueueButtonFromTemplate(
-            Transform parent, 
-            MusicTagListButton template, 
+            Transform parent,
+            MusicTagListButton template,
             string name,
-            string displayText, 
+            string displayText,
             UnityEngine.Events.UnityAction onClick)
         {
             // 克隆模板按钮
             var buttonObj = UnityEngine.Object.Instantiate(template.gameObject, parent);
             buttonObj.name = name;
             buttonObj.SetActive(true);
-            
+
             // 移除原有的MusicTagListButton行为（我们不需要Tag逻辑）
             var tagButton = buttonObj.GetComponent<MusicTagListButton>();
             if (tagButton != null)
             {
                 UnityEngine.Object.Destroy(tagButton);
             }
-            
+
             // 隐藏复选框（队列操作不需要）
             var buttonsContainer = buttonObj.transform.Find("Buttons");
             if (buttonsContainer != null)
@@ -789,7 +1045,7 @@ namespace ChillPatcher.Patches.UIFramework
                 {
                     checkBox.gameObject.SetActive(false);
                 }
-                
+
                 // 查找并修改TagName文本
                 var tagName = buttonsContainer.Find("TagName");
                 if (tagName != null)
@@ -804,13 +1060,13 @@ namespace ChillPatcher.Patches.UIFramework
                         {
                             UnityEngine.Object.Destroy(localization);
                         }
-                        
+
                         // 设置文本
                         tmpText.text = displayText;
                     }
                 }
             }
-            
+
             // 设置点击事件
             var button = buttonObj.GetComponent<Button>();
             if (button != null)
@@ -826,11 +1082,11 @@ namespace ChillPatcher.Patches.UIFramework
                 button = buttonObj.AddComponent<Button>();
                 button.onClick.AddListener(onClick);
             }
-            
+
             Plugin.Log.LogInfo($"[CreateQueueButton] Created queue button: {displayText}");
             return buttonObj;
         }
-        
+
         /// <summary>
         /// 隐藏 TodoSwitchFinishButton
         /// </summary>
@@ -857,7 +1113,7 @@ namespace ChillPatcher.Patches.UIFramework
                 }
             }
         }
-        
+
         /// <summary>
         /// 显示 TodoSwitchFinishButton
         /// </summary>
@@ -870,7 +1126,7 @@ namespace ChillPatcher.Patches.UIFramework
                 Plugin.Log.LogInfo("[TagListUI] Restored TodoSwitchFinishButton");
             }
         }
-        
+
         /// <summary>
         /// 更新队列模式下的下拉框高度（使用与正常模式相同的计算公式）
         /// </summary>
@@ -878,77 +1134,77 @@ namespace ChillPatcher.Patches.UIFramework
         {
             // 实测数据: 按钮高度=45
             const float buttonHeight = 45f;
-            
+
             // 公式：finalHeight = a × (按钮数 × 高度) + b
             float a = PluginConfig.TagDropdownHeightMultiplier.Value;
             float b = PluginConfig.TagDropdownHeightOffset.Value;
             float finalHeight = a * (buttonCount * buttonHeight) + b;
-            
+
             Traverse.Create(pulldown).Field("_openPullDownSizeDeltaY").SetValue(finalHeight);
             Plugin.Log.LogInfo($"[QueueMode] Dropdown height: {a} × ({buttonCount} × {buttonHeight}) + {b} = {finalHeight:F1}");
         }
-        
+
         /// <summary>
         /// 清空全部队列按钮点击
         /// </summary>
         private static void OnClearAllQueueClicked()
         {
             Plugin.Log.LogInfo("[TagListUI] Clear all queue clicked");
-            
+
             // 清空整个队列
             PlayQueueManager.Instance.Clear();
-            
+
             // 从播放列表获取下一首开始播放
             // 这会触发 AdvanceToNext，从播放列表补充
             var musicService = Traverse.Create(_cachedTagListUI)
                 .Field("musicService")
                 .GetValue<MusicService>();
-                
+
             if (musicService != null)
             {
                 // 播放下一首（从播放列表位置或随机）
                 musicService.SkipCurrentMusic(MusicChangeKind.Manual).Forget();
             }
-            
+
             // 自动切换回播放列表视图
             PlayQueueButton_Patch.SwitchToPlaylist();
         }
-        
+
         /// <summary>
         /// 清空未来队列按钮点击（保留当前播放）
         /// </summary>
         private static void OnClearFutureQueueClicked()
         {
             Plugin.Log.LogInfo("[TagListUI] Clear future queue clicked");
-            
+
             // 只清空待播放的，保留当前播放
             PlayQueueManager.Instance.ClearPending();
-            
+
             // 自动切换回播放列表视图
             PlayQueueButton_Patch.SwitchToPlaylist();
         }
-        
+
         /// <summary>
         /// 清空播放历史按钮点击
         /// </summary>
         private static void OnClearHistoryClicked()
         {
             Plugin.Log.LogInfo("[TagListUI] Clear history clicked");
-            
+
             // 清空播放历史
             PlayQueueManager.Instance.ClearHistory();
-            
+
             // 自动切换回播放列表视图
             PlayQueueButton_Patch.SwitchToPlaylist();
-            
+
             Plugin.Log.LogInfo("[TagListUI] Play history cleared");
         }
-        
+
         /// <summary>
         /// 当前是否处于队列模式
         /// </summary>
         public static bool IsQueueMode => _isQueueMode;
-        
+
         #endregion
     }
 }

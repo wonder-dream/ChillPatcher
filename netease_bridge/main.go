@@ -116,6 +116,45 @@ func NeteaseIsLoggedIn() C.int {
 	return 0
 }
 
+//export NeteaseLogout
+// NeteaseLogout 退出登录
+// 清除用户信息、Cookie 和本地存储
+// 返回: 1 = 成功, 0 = 失败
+func NeteaseLogout() C.int {
+	if !initialized {
+		lastError = "Not initialized"
+		return 0
+	}
+
+	// 1. 清除内存中的用户信息
+	currentUser = nil
+
+	// 2. 清除本地存储的用户信息
+	table := storage.NewTable()
+	if err := table.DeleteByKVModel(storage.User{}); err != nil {
+		log.Printf("[NeteaseLogout] Failed to delete user from storage: %v", err)
+		// 继续执行，不返回错误
+	}
+
+	// 3. 清除 Cookie
+	cookiePath := filepath.Join(dataDir, "cookie")
+	if err := os.Remove(cookiePath); err != nil && !os.IsNotExist(err) {
+		log.Printf("[NeteaseLogout] Failed to remove cookie file: %v", err)
+		// 继续执行，不返回错误
+	}
+
+	// 4. 重新创建空的 Cookie Jar
+	jar, err := cookiejar.NewFileJar(cookiePath, nil)
+	if err != nil {
+		lastError = "Failed to create new cookie jar: " + err.Error()
+		return 0
+	}
+	util.SetGlobalCookieJar(jar)
+
+	log.Printf("[NeteaseLogout] Successfully logged out")
+	return 1
+}
+
 //export NeteaseGetUserInfo
 func NeteaseGetUserInfo() *C.char {
 	if currentUser == nil {
@@ -1043,29 +1082,43 @@ func splitKeywords(s string) []string {
 	return result
 }
 
-// containsIgnoreCase 不区分大小写的字符串包含检查
-func containsIgnoreCase(s, substr string) bool {
-	// 简单实现：转换为小写后比较
-	sLower := ""
-	for _, c := range s {
+// toLowerASCII 将字符串中的 ASCII 大写字母转为小写
+func toLowerASCII(str string) string {
+	result := ""
+	for _, c := range str {
 		if c >= 'A' && c <= 'Z' {
-			sLower += string(c + 32)
+			result += string(c + 32)
 		} else {
-			sLower += string(c)
+			result += string(c)
 		}
 	}
-	substrLower := ""
-	for _, c := range substr {
-		if c >= 'A' && c <= 'Z' {
-			substrLower += string(c + 32)
-		} else {
-			substrLower += string(c)
-		}
+	return result
+}
+
+// containsIgnoreCase 不区分大小写的字符串包含检查（支持中文）
+func containsIgnoreCase(s, substr string) bool {
+	// 对于中文，直接比较即可（中文没有大小写）
+	// 对于英文，转换为小写后比较
+	sLower := toLowerASCII(s)
+	substrLower := toLowerASCII(substr)
+	
+	// 使用 rune 切片进行比较（正确处理 UTF-8）
+	sRunes := []rune(sLower)
+	substrRunes := []rune(substrLower)
+	
+	if len(substrRunes) > len(sRunes) {
+		return false
 	}
 	
-	// 检查是否包含
-	for i := 0; i <= len(sLower)-len(substrLower); i++ {
-		if sLower[i:i+len(substrLower)] == substrLower {
+	for i := 0; i <= len(sRunes)-len(substrRunes); i++ {
+		match := true
+		for j := 0; j < len(substrRunes); j++ {
+			if sRunes[i+j] != substrRunes[j] {
+				match = false
+				break
+			}
+		}
+		if match {
 			return true
 		}
 	}

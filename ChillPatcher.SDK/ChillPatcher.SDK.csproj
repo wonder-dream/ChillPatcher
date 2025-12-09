@@ -15,19 +15,19 @@
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 
-  <!-- SDK 不依赖游戏 DLL，只依赖基础 Unity 类型 -->
+  <!-- SDK 不依赖游�?DLL，只依赖基础 Unity 类型 -->
   <ItemGroup>
     <!-- Unity Engine (基础类型) -->
     <Reference Include="UnityEngine">
-      <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\UnityEngine.dll</HintPath>
+      <HintPath>D:\software\steam\steamapps\common\Chill with You Lo-Fi Story\Chill With You_Data\Managed\UnityEngine.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>D:\software\steam\steamapps\common\Chill with You Lo-Fi Story\Chill With You_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="UnityEngine.AudioModule">
-      <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\Chill With You_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
+      <HintPath>D:\software\steam\steamapps\common\Chill with You Lo-Fi Story\Chill With You_Data\Managed\UnityEngine.AudioModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
@@ -35,9 +35,10 @@
   <!-- BepInEx 配置类型 -->
   <ItemGroup>
     <Reference Include="BepInEx">
-      <HintPath>F:\SteamLibrary\steamapps\common\wallpaper_engine\projects\myprojects\chill_with_you\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>D:\software\steam\steamapps\common\Chill with You Lo-Fi Story\BepInEx\core\BepInEx.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
 
 </Project>
+

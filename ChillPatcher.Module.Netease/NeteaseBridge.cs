@@ -25,6 +25,9 @@ namespace ChillPatcher.Module.Netease
         private static extern int NeteaseIsLoggedIn();
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+        private static extern int NeteaseLogout();
+
+        [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr NeteaseGetUserInfo();
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
@@ -402,6 +405,40 @@ namespace ChillPatcher.Module.Netease
                 {
                     return false;
                 }
+            }
+        }
+
+        /// <summary>
+        /// 退出登录
+        /// 清除用户信息、Cookie 和本地存储
+        /// </summary>
+        /// <returns>是否成功</returns>
+        public bool Logout()
+        {
+            if (!_initialized)
+            {
+                _logger.LogWarning("[NeteaseBridge] Logout: Not initialized");
+                return false;
+            }
+
+            try
+            {
+                var result = NeteaseLogout();
+                if (result == 1)
+                {
+                    _logger.LogInfo("[NeteaseBridge] Logout successful");
+                    return true;
+                }
+                else
+                {
+                    _logger.LogWarning($"[NeteaseBridge] Logout failed: {GetLastErrorMessage()}");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"[NeteaseBridge] Logout exception: {ex}");
+                return false;
             }
         }
 
