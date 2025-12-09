@@ -185,6 +185,37 @@ namespace ChillPatcher.ModuleSystem.Registry
             }
         }
 
+        public void AddMusicToTag(string uuid, string tagId)
+        {
+            if (string.IsNullOrEmpty(uuid) || string.IsNullOrEmpty(tagId))
+                return;
+
+            lock (_lock)
+            {
+                // 检查歌曲是否存在
+                if (!_music.ContainsKey(uuid))
+                {
+                    _logger.LogWarning($"[MusicRegistry] 无法将歌曲添加到 Tag，歌曲不存在: {uuid}");
+                    return;
+                }
+
+                // 确保 Tag 索引存在
+                if (!_musicByTag.ContainsKey(tagId))
+                {
+                    _musicByTag[tagId] = new List<string>();
+                }
+
+                // 检查是否已经在这个 Tag 下
+                if (_musicByTag[tagId].Contains(uuid))
+                {
+                    return; // 已存在，不需要重复添加
+                }
+
+                _musicByTag[tagId].Add(uuid);
+                _logger.LogDebug($"[MusicRegistry] 歌曲 {uuid} 已添加到 Tag: {tagId}");
+            }
+        }
+
         public IReadOnlyList<MusicInfo> GetMusicByModule(string moduleId)
         {
             lock (_lock)
@@ -224,7 +255,7 @@ namespace ChillPatcher.ModuleSystem.Registry
                         {
                             oldAlbumList.Remove(music.UUID);
                         }
-                        
+
                         // 添加到新专辑的索引
                         if (!string.IsNullOrEmpty(music.AlbumId))
                         {
@@ -238,7 +269,7 @@ namespace ChillPatcher.ModuleSystem.Registry
                             }
                         }
                     }
-                    
+
                     _music[music.UUID] = music;
                     OnMusicUpdated?.Invoke(music);
                 }

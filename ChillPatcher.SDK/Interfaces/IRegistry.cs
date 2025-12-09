@@ -174,6 +174,13 @@ namespace ChillPatcher.SDK.Interfaces
         IReadOnlyList<MusicInfo> GetMusicByTag(string tagId);
 
         /// <summary>
+        /// 将歌曲添加到指定 Tag 的索引中（支持一首歌属于多个 Tag）
+        /// </summary>
+        /// <param name="uuid">歌曲 UUID</param>
+        /// <param name="tagId">Tag ID</param>
+        void AddMusicToTag(string uuid, string tagId);
+
+        /// <summary>
         /// 获取指定模块注册的所有歌曲
         /// </summary>
         IReadOnlyList<MusicInfo> GetMusicByModule(string moduleId);

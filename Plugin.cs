@@ -24,7 +24,7 @@ namespace ChillPatcher
     {
         internal static new ManualLogSource Logger;
         internal static ManualLogSource Log; // 别名，用于Patches
-        
+
         private float healthCheckTimer = 0f;
         private const float healthCheckInterval = 5f; // 每5秒检查一次
 
@@ -42,18 +42,18 @@ namespace ChillPatcher
         {
             Logger = base.Logger;
             Log = Logger; // 设置别名
-            
+
             // 设置路径
             PluginPath = Path.GetDirectoryName(Info.Location);
             ModulesPath = Path.Combine(PluginPath, "modules");
-            
+
             CoreDependencyLoader.EnsureDependencies(Log);
             Logger.LogInfo($"Plugin {MyPluginInfo.PLUGIN_GUID} is loaded!");
             Logger.LogInfo($"Plugin Path: {PluginPath}");
 
             // 初始化配置
             PluginConfig.Initialize(Config);
-            
+
             // 初始化UI框架配置
             UIFrameworkConfig.Initialize(Config);
 
@@ -62,7 +62,7 @@ namespace ChillPatcher
             harmony.PatchAll();
 
             Logger.LogInfo("Harmony patches applied!");
-            
+
             // 输出配置状态
             Logger.LogInfo("==== ChillPatcher Configuration ====");
             Logger.LogInfo($"Virtual Scroll: ALWAYS ON (Performance optimization)");
@@ -74,20 +74,20 @@ namespace ChillPatcher
             // 初始化全局键盘钩子（用于壁纸引擎模式）
             KeyboardHookPatch.Initialize();
             Logger.LogInfo("Keyboard hook initialized!");
-            
+
             // 初始化成就同步管理器
             if (PluginConfig.EnableAchievementCache.Value)
             {
                 AchievementSyncManager.Initialize();
                 Logger.LogInfo("Achievement sync manager initialized!");
             }
-            
+
             // ========== 初始化模块系统 ==========
             try
             {
                 InitializeModuleSystem();
                 Logger.LogInfo("Module system initialized!");
-                
+
                 // 初始化UI框架
                 ChillUIFramework.Initialize();
                 Logger.LogInfo("ChillUIFramework initialized!");
@@ -108,17 +108,17 @@ namespace ChillPatcher
             AlbumRegistry.Initialize(Logger);
             MusicRegistry.Initialize(Logger);
             EventBus.Initialize(Logger);
-            
+
             // 初始化核心服务
             DefaultCoverProvider.Initialize();
             CoreAudioLoader.Initialize();
-            
+
             // 订阅 MusicRegistry 事件以同步到游戏 MusicService
             SubscribeMusicRegistryEvents();
-            
+
             // 订阅 TagRegistry 事件以刷新 UI
             SubscribeTagRegistryEvents();
-            
+
             Logger.LogInfo("Core registries and services initialized!");
         }
 
@@ -171,7 +171,7 @@ namespace ChillPatcher
                 try
                 {
                     Logger.LogDebug($"[TagSync] New tag registered: {tagInfo.DisplayName}");
-                    
+
                     // 确保在主线程执行 UI 刷新
                     UIFramework.Audio.MainThreadDispatcher.Instance?.Enqueue(() =>
                     {
@@ -219,7 +219,7 @@ namespace ChillPatcher
                 var allMusicList = Traverse.Create(musicService)
                     .Field("_allMusicList")
                     .GetValue<List<GameAudioInfo>>();
-                
+
                 if (allMusicList != null && !allMusicList.Any(a => a.UUID == gameAudio.UUID))
                 {
                     allMusicList.Add(gameAudio);
@@ -269,7 +269,7 @@ namespace ChillPatcher
 
                 // 构造 Tag（模块 Tag + 收藏状态）
                 AudioTag tag = (AudioTag)tagInfo.BitValue;
-                
+
                 // 如果歌曲已收藏，添加 Favorite 标记
                 if (musicInfo.IsFavorite)
                 {
@@ -312,6 +312,29 @@ namespace ChillPatcher
                 // 检查是否是当前正在播放的歌曲
                 bool isCurrentlyPlaying = musicService.PlayingMusic?.UUID == musicUUID;
 
+                // 从 _allMusicList 移除（核心列表）
+                var allMusicList = HarmonyLib.Traverse.Create(musicService)
+                    .Field("_allMusicList")
+                    .GetValue<System.Collections.Generic.List<Bulbul.GameAudioInfo>>();
+                var allToRemove = allMusicList?.FirstOrDefault(a => a.UUID == musicUUID);
+                if (allToRemove != null)
+                {
+                    allMusicList.Remove(allToRemove);
+                    Logger.LogDebug($"[MusicSync] Removed from _allMusicList: {musicUUID}");
+                }
+
+                // 从 shuffleList 移除
+                var shuffleList = HarmonyLib.Traverse.Create(musicService)
+                    .Field("shuffleList")
+                    .GetValue<System.Collections.Generic.List<Bulbul.GameAudioInfo>>();
+                var shuffleToRemove = shuffleList?.FirstOrDefault(a => a.UUID == musicUUID);
+                if (shuffleToRemove != null)
+                {
+                    shuffleList.Remove(shuffleToRemove);
+                    Logger.LogDebug($"[MusicSync] Removed from shuffleList: {musicUUID}");
+                }
+
+                // 从 CurrentPlayList 移除
                 var currentPlayList = musicService.CurrentPlayList;
                 var toRemove = currentPlayList?.FirstOrDefault(a => a.UUID == musicUUID);
                 if (toRemove != null)
@@ -319,6 +342,10 @@ namespace ChillPatcher
                     currentPlayList.Remove(toRemove);
                     Logger.LogInfo($"[MusicSync] Removed from CurrentPlayList: {musicUUID}");
                 }
+
+                // 从 PlayQueueManager 移除（包括队列和历史）
+                UIFramework.Music.PlayQueueManager.Instance?.OnSongExcluded(musicUUID);
+                Logger.LogDebug($"[MusicSync] Removed from PlayQueue: {musicUUID}");
 
                 // 如果移除的是当前播放的歌曲，自动播放下一首
                 if (isCurrentlyPlaying)
@@ -500,7 +527,7 @@ namespace ChillPatcher
             try
             {
                 healthCheckTimer += UnityEngine.Time.deltaTime;
-                
+
                 if (healthCheckTimer >= healthCheckInterval)
                 {
                     healthCheckTimer = 0f;
@@ -517,7 +544,7 @@ namespace ChillPatcher
         private void OnApplicationQuit()
         {
             Logger.LogInfo("OnApplicationQuit called - cleaning up...");
-            
+
             // 保存播放状态（队列和历史）
             try
             {
@@ -528,7 +555,7 @@ namespace ChillPatcher
             {
                 Logger.LogError($"Error saving playback state: {ex}");
             }
-            
+
             // 卸载所有模块
             try
             {
@@ -539,11 +566,11 @@ namespace ChillPatcher
             {
                 Logger.LogError($"Error unloading modules: {ex}");
             }
-            
+
             // 清理键盘钩子
             KeyboardHookPatch.Cleanup();
             Logger.LogInfo("Keyboard hook cleanup completed!");
-            
+
             // 清理UI框架
             try
             {
