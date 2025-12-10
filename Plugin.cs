@@ -14,6 +14,7 @@ using ChillPatcher.ModuleSystem;
 using ChillPatcher.ModuleSystem.Registry;
 using ChillPatcher.ModuleSystem.Services;
 using ChillPatcher.SDK.Interfaces;
+using ChillPatcher.WeatherSync;
 using Cysharp.Threading.Tasks;
 using Bulbul;
 
@@ -57,6 +58,9 @@ namespace ChillPatcher
             // 初始化UI框架配置
             UIFrameworkConfig.Initialize(Config);
 
+            // 初始化天气同步配置
+            WeatherSyncConfig.Initialize(Config);
+
             // Apply Harmony patches
             var harmony = new Harmony(MyPluginInfo.PLUGIN_GUID);
             harmony.PatchAll();
@@ -91,6 +95,10 @@ namespace ChillPatcher
                 // 初始化UI框架
                 ChillUIFramework.Initialize();
                 Logger.LogInfo("ChillUIFramework initialized!");
+
+                // ========== 启动天气同步系统 ==========
+                WeatherSyncManager.Start();
+                Logger.LogInfo("WeatherSync system started!");
             }
             catch (Exception ex)
             {
