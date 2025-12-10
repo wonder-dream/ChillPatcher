@@ -37,7 +37,10 @@ namespace ChillPatcher.ModuleSystem
         public IDisposable Subscribe<TEvent>(Action<TEvent> handler) where TEvent : IModuleEvent
         {
             if (handler == null)
-                throw new ArgumentNullException(nameof(handler));
+            {
+                _logger?.LogWarning("EventBus.Subscribe: handler is null");
+                return new EmptyDisposable();
+            }
 
             var eventType = typeof(TEvent);
 
@@ -50,22 +53,33 @@ namespace ChillPatcher.ModuleSystem
                 _handlers[eventType].Add(handler);
             }
 
-            _logger.LogDebug($"订阅事件: {eventType.Name}");
+            _logger?.LogDebug($"订阅事件: {eventType.Name}");
 
             return new Subscription<TEvent>(this, handler);
+        }
+
+        /// <summary>
+        /// 空的 Disposable 实现（用于无效订阅）
+        /// </summary>
+        private class EmptyDisposable : IDisposable
+        {
+            public void Dispose() { }
         }
 
         public void Publish<TEvent>(TEvent eventData) where TEvent : IModuleEvent
         {
             if (eventData == null)
-                throw new ArgumentNullException(nameof(eventData));
+            {
+                _logger?.LogWarning("EventBus.Publish: eventData is null");
+                return;
+            }
 
             var eventType = typeof(TEvent);
             List<Delegate> handlers;
 
             lock (_lock)
             {
-                if (!_handlers.TryGetValue(eventType, out handlers))
+                if (!_handlers.TryGetValue(eventType, out handlers) || handlers == null || handlers.Count == 0)
                 {
                     return;
                 }
@@ -73,18 +87,31 @@ namespace ChillPatcher.ModuleSystem
                 handlers = new List<Delegate>(handlers);
             }
 
-            _logger.LogDebug($"发布事件: {eventType.Name} (订阅者: {handlers.Count})");
+            _logger?.LogDebug($"发布事件: {eventType.Name} (订阅者: {handlers.Count})");
+
+            int successCount = 0;
+            int failCount = 0;
 
             foreach (var handler in handlers)
             {
+                if (handler == null) continue;
+
                 try
                 {
                     ((Action<TEvent>)handler)(eventData);
+                    successCount++;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"事件处理器异常 ({eventType.Name}): {ex.Message}");
+                    failCount++;
+                    _logger?.LogError($"事件处理器异常 ({eventType.Name}): {ex.Message}\n{ex.StackTrace}");
+                    // 继续处理其他订阅者，不抛出异常
                 }
+            }
+
+            if (failCount > 0)
+            {
+                _logger?.LogWarning($"事件 {eventType.Name} 处理完成，成功: {successCount}，失败: {failCount}");
             }
         }
 
@@ -94,7 +121,7 @@ namespace ChillPatcher.ModuleSystem
             {
                 _handlers.Clear();
             }
-            _logger.LogInfo("已取消所有事件订阅");
+            _logger?.LogInfo("已取消所有事件订阅");
         }
 
         /// <summary>

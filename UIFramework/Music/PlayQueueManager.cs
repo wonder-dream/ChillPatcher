@@ -450,18 +450,27 @@ namespace ChillPatcher.UIFramework.Music
         public void RemoveFromHistory(string uuid)
         {
             if (string.IsNullOrEmpty(uuid)) return;
+            if (_history == null) return;
 
-            int removedCount = _history.RemoveAll(a => a.UUID == uuid);
-
-            if (removedCount > 0)
+            try
             {
-                // 如果在历史回溯模式中，调整位置
-                if (_historyPosition >= _history.Count)
-                {
-                    _historyPosition = _history.Count - 1;
-                }
+                int removedCount = _history.RemoveAll(a => a != null && a.UUID == uuid);
 
-                Plugin.Log.LogDebug($"[Queue] Removed {removedCount} songs from history with UUID: {uuid}");
+                if (removedCount > 0)
+                {
+                    // 如果在历史回溯模式中，调整位置
+                    if (_historyPosition >= _history.Count)
+                    {
+                        _historyPosition = Math.Max(-1, _history.Count - 1);
+                    }
+
+                    Plugin.Log.LogDebug($"[Queue] Removed {removedCount} songs from history with UUID: {uuid}");
+                    OnHistoryChanged?.Invoke();
+                }
+            }
+            catch (Exception ex)
+            {
+                Plugin.Log.LogError($"[Queue] Error in RemoveFromHistory: {ex.Message}");
             }
         }
 
@@ -473,25 +482,36 @@ namespace ChillPatcher.UIFramework.Music
         {
             if (string.IsNullOrEmpty(uuid)) return;
 
-            // 从队列移除（第一个是正在播放的，保留）
-            bool inQueue = false;
-            for (int i = _queue.Count - 1; i >= 1; i--)
+            try
             {
-                if (_queue[i].UUID == uuid)
+                // 从队列移除（第一个是正在播放的，保留）
+                bool inQueue = false;
+                if (_queue != null && _queue.Count > 1)
                 {
-                    Plugin.Log.LogInfo($"[Queue] Removing excluded song from queue: {_queue[i].AudioClipName}");
-                    _queue.RemoveAt(i);
-                    inQueue = true;
+                    for (int i = _queue.Count - 1; i >= 1; i--)
+                    {
+                        var item = _queue[i];
+                        if (item != null && item.UUID == uuid)
+                        {
+                            Plugin.Log.LogInfo($"[Queue] Removing excluded song from queue: {item.AudioClipName ?? "unknown"}");
+                            _queue.RemoveAt(i);
+                            inQueue = true;
+                        }
+                    }
                 }
-            }
 
-            if (inQueue)
+                if (inQueue)
+                {
+                    OnQueueChanged?.Invoke();
+                }
+
+                // 从历史记录移除
+                RemoveFromHistory(uuid);
+            }
+            catch (Exception ex)
             {
-                OnQueueChanged?.Invoke();
+                Plugin.Log.LogError($"[Queue] Error in OnSongExcluded: {ex.Message}");
             }
-
-            // 从历史记录移除
-            RemoveFromHistory(uuid);
         }
 
         #endregion

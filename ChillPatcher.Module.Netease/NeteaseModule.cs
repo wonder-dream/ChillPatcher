@@ -35,6 +35,7 @@ namespace ChillPatcher.Module.Netease
         private bool _isReady = false;
         private bool _isLoggedIn = false;
         private string _currentUserName = null;  // 当前登录用户名
+        private bool _favoriteEventsSubscribed = false;  // 防止重复订阅事件
 
         // 登录歌曲常量
         private const string LOGIN_SONG_UUID = "netease_qr_login_song";
@@ -145,9 +146,6 @@ namespace ChillPatcher.Module.Netease
             _favoriteManager = new NeteaseFavoriteManager(_bridge, context.Logger, _songInfoMap);
             _songRegistry = new NeteaseSongRegistry(context, ModuleId, _songInfoMap, _favoriteManager, context.Logger);
 
-            // 注册 Tags
-            RegisterTags();
-
             // 获取并缓存收藏歌曲 ID 列表
             await _favoriteManager.LoadLikeListAsync();
 
@@ -240,15 +238,28 @@ namespace ChillPatcher.Module.Netease
 
         public async Task<PlayableSource> ResolveAsync(string uuid, AudioQuality quality = AudioQuality.ExHigh, CancellationToken cancellationToken = default)
         {
+            // 防御性检查
+            if (string.IsNullOrEmpty(uuid))
+            {
+                _context?.Logger?.LogWarning($"[{DisplayName}] ResolveAsync: UUID 为空");
+                return null;
+            }
+
+            if (_bridge == null || !_bridge.IsInitialized)
+            {
+                _context?.Logger?.LogWarning($"[{DisplayName}] ResolveAsync: Bridge 未初始化");
+                return null;
+            }
+
             // 处理登录歌曲
             if (uuid == LOGIN_SONG_UUID)
             {
                 return await ResolveLoginSongAsync(cancellationToken);
             }
 
-            if (!_songInfoMap.TryGetValue(uuid, out var songInfo))
+            if (!_songInfoMap.TryGetValue(uuid, out var songInfo) || songInfo == null)
             {
-                _context.Logger.LogWarning($"[{DisplayName}] 未找到歌曲: {uuid}");
+                _context?.Logger?.LogWarning($"[{DisplayName}] 未找到歌曲: {uuid}");
                 return null;
             }
 
@@ -557,52 +568,62 @@ namespace ChillPatcher.Module.Netease
         /// </summary>
         private async void OnQRLoginSuccess()
         {
-            _context.Logger.LogInfo($"[{DisplayName}] 二维码登录成功！");
-            _isLoggedIn = true;
-
-            // 获取用户信息
-            var userInfo = _bridge.GetUserInfo();
-            if (userInfo != null)
+            try
             {
-                _currentUserName = userInfo.Nickname;
-                _context.Logger.LogInfo($"[{DisplayName}] 已登录: {userInfo.Nickname} (ID: {userInfo.UserId})");
+                _context?.Logger?.LogInfo($"[{DisplayName}] 二维码登录成功！");
+                _isLoggedIn = true;
+
+                // 获取用户信息
+                var userInfo = _bridge?.GetUserInfo();
+                if (userInfo != null)
+                {
+                    _currentUserName = userInfo.Nickname;
+                    _context?.Logger?.LogInfo($"[{DisplayName}] 已登录: {userInfo.Nickname} (ID: {userInfo.UserId})");
+                }
+
+                // 删除登录歌曲
+                RemoveLoginSong();
+
+                // 注销旧的专辑
+                _context?.AlbumRegistry?.UnregisterAllByModule(ModuleId);
+
+                // 初始化辅助管理器
+                if (_bridge != null && _context != null)
+                {
+                    _favoriteManager = new NeteaseFavoriteManager(_bridge, _context.Logger, _songInfoMap);
+                    _songRegistry = new NeteaseSongRegistry(_context, ModuleId, _songInfoMap, _favoriteManager, _context.Logger);
+
+                    // 获取并缓存收藏歌曲 ID 列表
+                    await _favoriteManager.LoadLikeListAsync();
+
+                    // 扫描并注册收藏歌曲
+                    await ScanAndRegisterAsync();
+
+                    // 搜索并注册自定义歌单（如"献给聪音"）
+                    await SearchAndRegisterCustomPlaylistsAsync();
+
+                    // 根据 ID 导入指定歌单
+                    await ImportPlaylistsByIdAsync();
+
+                    // 订阅收藏变化事件
+                    SubscribeToFavoriteEvents();
+
+                    // 统计自定义歌单歌曲数
+                    var customSongCount = _customPlaylistMusicLists.Values.Sum(list => list.Count);
+                    _context.Logger.LogInfo($"[{DisplayName}] ✅ 登录后初始化完成，收藏 {_musicList.Count} 首，自定义歌单 {customSongCount} 首");
+
+                    // 发布刷新事件
+                    _context.EventBus.Publish(new SDK.Events.PlaylistUpdatedEvent
+                    {
+                        TagId = NeteaseSongRegistry.TAG_FAVORITES,
+                        UpdateType = SDK.Events.PlaylistUpdateType.FullRefresh
+                    });
+                }
             }
-
-            // 删除登录歌曲
-            RemoveLoginSong();
-
-            // 注销旧的专辑
-            _context.AlbumRegistry.UnregisterAllByModule(ModuleId);
-
-            // 初始化辅助管理器
-            _favoriteManager = new NeteaseFavoriteManager(_bridge, _context.Logger, _songInfoMap);
-            _songRegistry = new NeteaseSongRegistry(_context, ModuleId, _songInfoMap, _favoriteManager, _context.Logger);
-
-            // 获取并缓存收藏歌曲 ID 列表
-            await _favoriteManager.LoadLikeListAsync();
-
-            // 扫描并注册收藏歌曲
-            await ScanAndRegisterAsync();
-
-            // 搜索并注册自定义歌单（如"献给聪音"）
-            await SearchAndRegisterCustomPlaylistsAsync();
-
-            // 根据 ID 导入指定歌单
-            await ImportPlaylistsByIdAsync();
-
-            // 订阅收藏变化事件
-            SubscribeToFavoriteEvents();
-
-            // 统计自定义歌单歌曲数
-            var customSongCount = _customPlaylistMusicLists.Values.Sum(list => list.Count);
-            _context.Logger.LogInfo($"[{DisplayName}] ✅ 登录后初始化完成，收藏 {_musicList.Count} 首，自定义歌单 {customSongCount} 首");
-
-            // 发布刷新事件
-            _context.EventBus.Publish(new SDK.Events.PlaylistUpdatedEvent
+            catch (Exception ex)
             {
-                TagId = NeteaseSongRegistry.TAG_FAVORITES,
-                UpdateType = SDK.Events.PlaylistUpdateType.FullRefresh
-            });
+                _context?.Logger?.LogError($"[{DisplayName}] 登录成功后初始化失败: {ex}");
+            }
         }
 
         /// <summary>
@@ -618,7 +639,12 @@ namespace ChillPatcher.Module.Netease
 
         private void SubscribeToFavoriteEvents()
         {
+            // 防止重复订阅
+            if (_favoriteEventsSubscribed)
+                return;
+
             _context.EventBus.Subscribe<FavoriteChangedEvent>(OnFavoriteChanged);
+            _favoriteEventsSubscribed = true;
         }
 
         private void OnFavoriteChanged(FavoriteChangedEvent evt)
@@ -630,20 +656,20 @@ namespace ChillPatcher.Module.Netease
             });
         }
 
-        private async Task ScanAndRegisterAsync()
+        private Task ScanAndRegisterAsync()
         {
             // 检查是否启用导入收藏歌曲
             if (!_importLikeSongs.Value)
             {
                 _context.Logger.LogInfo($"[{DisplayName}] ImportLikeSongs=false，跳过导入收藏歌曲");
-                return;
+                return Task.CompletedTask;
             }
 
             var songs = _bridge.GetLikeSongs(true);
             if (songs == null || songs.Count == 0)
             {
                 _context.Logger.LogWarning($"[{DisplayName}] 未获取到收藏歌曲");
-                return;
+                return Task.CompletedTask;
             }
 
             _context.Logger.LogInfo($"[{DisplayName}] 获取到 {songs.Count} 首收藏歌曲");
@@ -653,6 +679,7 @@ namespace ChillPatcher.Module.Netease
             _musicList = _songRegistry.RegisterFavoritesSongs(songs);
 
             _context.Logger.LogInfo($"[{DisplayName}] 已注册 1 个专辑(歌单), {_musicList.Count} 首歌曲");
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -864,15 +891,7 @@ namespace ChillPatcher.Module.Netease
         {
             _favoriteManager.SetFavorite(uuid, isFavorite);
             UpdateMusicFavoriteState(uuid, isFavorite);
-
-            // 收藏时，将自定义歌单歌曲移动到收藏专辑
-            if (isFavorite)
-            {
-                foreach (var customList in _customPlaylistMusicLists.Values)
-                {
-                    _songRegistry.MoveSongToFavorites(uuid, customList, _musicList);
-                }
-            }
+            // 注意：不再移动歌曲到收藏专辑，歌曲保持在原有歌单中
         }
 
         public bool IsExcluded(string uuid) => _favoriteManager?.IsExcluded(uuid) ?? false;
@@ -954,13 +973,13 @@ namespace ChillPatcher.Module.Netease
         {
             if (!_isLoggedIn)
             {
-                _context.Logger.LogWarning($"[{DisplayName}] 未登录，无需退出");
+                _context?.Logger?.LogWarning($"[{DisplayName}] 未登录，无需退出");
                 return false;
             }
 
             try
             {
-                _context.Logger.LogInfo($"[{DisplayName}] 正在退出登录...");
+                _context?.Logger?.LogInfo($"[{DisplayName}] 正在退出登录...");
 
                 // 1. 调用 Bridge 退出登录
                 var success = _bridge.Logout();
@@ -1020,12 +1039,9 @@ namespace ChillPatcher.Module.Netease
                 // 11. 触发退出登录事件
                 OnLoggedOut?.Invoke();
 
-                // 12. 自动开始生成新二维码
-                _ = Task.Run(async () =>
-                {
-                    await Task.Delay(500);
-                    await _qrLoginManager.StartLoginAsync();
-                });
+                // 12. 不自动开始生成新二维码
+                // 二维码生成需要在主线程进行（Unity Texture2D 限制）
+                // 用户点击播放登录歌曲时会自动触发二维码生成
 
                 return true;
             }

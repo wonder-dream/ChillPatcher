@@ -22,7 +22,7 @@ namespace ChillPatcher.Module.Netease
         private readonly HashSet<string> _excludedUuids = new HashSet<string>();  // 内存中的排除列表
 
         public NeteaseFavoriteManager(
-            NeteaseBridge bridge, 
+            NeteaseBridge bridge,
             ManualLogSource logger,
             Dictionary<string, NeteaseBridge.SongInfo> songInfoMap)
         {
@@ -39,7 +39,7 @@ namespace ChillPatcher.Module.Netease
         /// <summary>
         /// 加载收藏列表
         /// </summary>
-        public async Task LoadLikeListAsync()
+        public Task LoadLikeListAsync()
         {
             var likeIds = _bridge.GetLikeList();
             if (likeIds != null)
@@ -51,6 +51,7 @@ namespace ChillPatcher.Module.Netease
                 }
                 _logger.LogInfo($"[NeteaseFavoriteManager] 已缓存 {_likedSongIds.Count} 首收藏歌曲 ID");
             }
+            return Task.CompletedTask;
         }
 
         /// <summary>

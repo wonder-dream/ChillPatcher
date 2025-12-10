@@ -92,27 +92,6 @@ namespace ChillPatcher.Module.Netease
             return musicList;
         }
 
-        /// <summary>
-        /// 将歌曲移动到收藏专辑
-        /// </summary>
-        public void MoveSongToFavorites(string uuid, List<MusicInfo> sourceList, List<MusicInfo> favoritesMusicList)
-        {
-            // 找到源列表中的歌曲
-            var music = sourceList.FirstOrDefault(m => m.UUID == uuid);
-            if (music == null) return;
-
-            // 更新为收藏专辑
-            music.AlbumId = FAVORITES_ALBUM_ID;
-            music.IsFavorite = true;
-
-            // 移动到收藏列表
-            sourceList.Remove(music);
-            favoritesMusicList.Add(music);
-
-            // 更新注册信息
-            _context.MusicRegistry.UpdateMusic(music);
-        }
-
         #region 自定义歌单
 
         /// <summary>
@@ -142,32 +121,13 @@ namespace ChillPatcher.Module.Netease
             _context.TagRegistry.RegisterTag(tagId, displayName, _moduleId);
             _logger.LogInfo($"[NeteaseSongRegistry] 已注册 Tag: {displayName} ({tagId})");
 
-            // 将收藏专辑也注册到这个 Tag 下，这样歌曲收藏后可以正确显示在收藏专辑中
-            AddFavoritesAlbumToTag(tagId);
-        }
-
-        /// <summary>
-        /// 将收藏专辑添加到指定 Tag 下
-        /// </summary>
-        private void AddFavoritesAlbumToTag(string tagId)
-        {
+            // 如果收藏专辑存在，将其也注册到这个 Tag 下
             var favoritesAlbum = _context.AlbumRegistry.GetAlbum(FAVORITES_ALBUM_ID);
-            if (favoritesAlbum == null)
+            if (favoritesAlbum != null && !favoritesAlbum.TagIds.Contains(tagId))
             {
-                _logger.LogWarning($"[NeteaseSongRegistry] 收藏专辑未找到，无法添加到 Tag: {tagId}");
-                return;
+                favoritesAlbum.TagIds.Add(tagId);
+                _context.AlbumRegistry.RegisterAlbum(favoritesAlbum, _moduleId);
             }
-
-            // 检查是否已包含此 Tag
-            if (favoritesAlbum.TagIds.Contains(tagId))
-                return;
-
-            // 添加新的 TagId
-            favoritesAlbum.TagIds.Add(tagId);
-
-            // 重新注册专辑以更新索引
-            _context.AlbumRegistry.RegisterAlbum(favoritesAlbum, _moduleId);
-            _logger.LogInfo($"[NeteaseSongRegistry] 已将收藏专辑添加到 Tag: {tagId}");
         }
 
         /// <summary>

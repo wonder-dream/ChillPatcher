@@ -22,11 +22,11 @@ namespace ChillPatcher.UIFramework.Audio
         public static bool IsStreamingSource(GameAudioInfo audioInfo)
         {
             if (audioInfo == null) return false;
-            
+
             var music = MusicRegistry.Instance?.GetMusic(audioInfo.UUID);
             if (music == null) return false;
-            
-            return music.SourceType == MusicSourceType.Stream || 
+
+            return music.SourceType == MusicSourceType.Stream ||
                    music.SourceType == MusicSourceType.Url;
         }
 
@@ -36,7 +36,7 @@ namespace ChillPatcher.UIFramework.Audio
         public static bool IsModuleStreamingEnabled(string moduleId)
         {
             if (string.IsNullOrEmpty(moduleId)) return false;
-            
+
             // 流媒体模块应该实现 IStreamingMusicSourceProvider
             var provider = ModuleLoader.Instance?.GetProvider<IStreamingMusicSourceProvider>(moduleId);
             return provider != null;
@@ -58,54 +58,71 @@ namespace ChillPatcher.UIFramework.Audio
         /// <param name="cancellationToken">取消令牌</param>
         /// <returns>加载的 AudioClip</returns>
         public static async Task<AudioClip> LoadFromStreamingAsync(
-            string uuid, 
+            string uuid,
             CancellationToken cancellationToken = default)
         {
+            // 防御性检查
+            if (string.IsNullOrEmpty(uuid))
+            {
+                Plugin.Log?.LogWarning("[StreamingAudioLoader] UUID is null or empty");
+                return null;
+            }
+
             var music = MusicRegistry.Instance?.GetMusic(uuid);
             if (music == null)
             {
-                Plugin.Log.LogWarning($"[StreamingAudioLoader] Music not found: {uuid}");
+                Plugin.Log?.LogWarning($"[StreamingAudioLoader] Music not found: {uuid}");
+                return null;
+            }
+
+            if (string.IsNullOrEmpty(music.ModuleId))
+            {
+                Plugin.Log?.LogWarning($"[StreamingAudioLoader] ModuleId is null for: {uuid}");
                 return null;
             }
 
             var resolver = GetStreamingResolver(music.ModuleId);
             if (resolver == null)
             {
-                Plugin.Log.LogWarning($"[StreamingAudioLoader] Streaming resolver not found for module: {music.ModuleId}");
+                Plugin.Log?.LogWarning($"[StreamingAudioLoader] Streaming resolver not found for module: {music.ModuleId}");
                 return null;
             }
 
             try
             {
+                // 检查取消
+                cancellationToken.ThrowIfCancellationRequested();
+
                 // 解析可播放源
                 var source = await resolver.ResolveAsync(
-                    uuid, 
-                    AudioQuality.ExHigh, 
+                    uuid,
+                    AudioQuality.ExHigh,
                     cancellationToken);
 
                 if (source == null)
                 {
-                    Plugin.Log.LogError($"[StreamingAudioLoader] Failed to resolve playable source for: {uuid}");
+                    Plugin.Log?.LogError($"[StreamingAudioLoader] Failed to resolve playable source for: {uuid}");
                     return null;
                 }
 
                 // 检查 URL 过期
                 if (source.IsRemote && source.IsExpired)
                 {
-                    Plugin.Log.LogInfo($"[StreamingAudioLoader] URL expired, refreshing: {uuid}");
+                    Plugin.Log?.LogInfo($"[StreamingAudioLoader] URL expired, refreshing: {uuid}");
+                    cancellationToken.ThrowIfCancellationRequested();
                     source = await resolver.RefreshUrlAsync(
-                        uuid, 
-                        AudioQuality.ExHigh, 
+                        uuid,
+                        AudioQuality.ExHigh,
                         cancellationToken);
                 }
 
                 if (source == null)
                 {
-                    Plugin.Log.LogError($"[StreamingAudioLoader] Failed to refresh URL for: {uuid}");
+                    Plugin.Log?.LogError($"[StreamingAudioLoader] Failed to refresh URL for: {uuid}");
                     return null;
                 }
 
-                Plugin.Log.LogInfo($"[StreamingAudioLoader] Loading from {source.SourceType}, Format: {source.Format}");
+                Plugin.Log?.LogInfo($"[StreamingAudioLoader] Loading from {source.SourceType}, Format: {source.Format}");
 
                 // 根据来源类型加载
                 switch (source.SourceType)
@@ -117,16 +134,21 @@ namespace ChillPatcher.UIFramework.Audio
                     case PlayableSourceType.Remote:
                         // 远程 URL
                         var coreLoader = ModuleSystem.Services.CoreAudioLoader.Instance;
-                        
+                        if (coreLoader == null)
+                        {
+                            Plugin.Log?.LogError("[StreamingAudioLoader] CoreAudioLoader instance is null");
+                            return null;
+                        }
+
                         // 检查是否是 FLAC URL（需要边下边播）
                         if (source.Format == AudioFormat.Flac || coreLoader.IsFlacUrl(source.Url))
                         {
-                            Plugin.Log.LogInfo($"[StreamingAudioLoader] Using URL FLAC loader for: {uuid}");
+                            Plugin.Log?.LogInfo($"[StreamingAudioLoader] Using URL FLAC loader for: {uuid}");
                             var (clip, loader) = await coreLoader.LoadFromUrlFlacAsync(
-                                source.Url, 
-                                uuid, 
+                                source.Url,
+                                uuid,
                                 cancellationToken);
-                            
+
                             if (clip != null && loader != null)
                             {
                                 // 注册到资源管理器
@@ -134,7 +156,7 @@ namespace ChillPatcher.UIFramework.Audio
                             }
                             return clip;
                         }
-                        
+
                         // 其他格式 - Unity 原生加载
                         return await coreLoader.LoadFromUrlAsync(source.Url, cancellationToken);
 
@@ -142,18 +164,23 @@ namespace ChillPatcher.UIFramework.Audio
                     case PlayableSourceType.Cached:
                     default:
                         // 本地/缓存文件
-                        return await ModuleSystem.Services.CoreAudioLoader.Instance
-                            .LoadFromFileAsync(source.LocalPath);
+                        var localLoader = ModuleSystem.Services.CoreAudioLoader.Instance;
+                        if (localLoader == null || string.IsNullOrEmpty(source.LocalPath))
+                        {
+                            Plugin.Log?.LogWarning($"[StreamingAudioLoader] Cannot load local file: {source.LocalPath}");
+                            return null;
+                        }
+                        return await localLoader.LoadFromFileAsync(source.LocalPath);
                 }
             }
             catch (OperationCanceledException)
             {
-                Plugin.Log.LogDebug($"[StreamingAudioLoader] Load cancelled: {uuid}");
+                Plugin.Log?.LogDebug($"[StreamingAudioLoader] Load cancelled: {uuid}");
                 return null;
             }
             catch (Exception ex)
             {
-                Plugin.Log.LogError($"[StreamingAudioLoader] Load failed: {ex.Message}");
+                Plugin.Log?.LogError($"[StreamingAudioLoader] Load failed: {ex.Message}");
                 return null;
             }
         }
@@ -183,10 +210,23 @@ namespace ChillPatcher.UIFramework.Audio
             int lengthSamples;
             bool isStreaming;
 
+            // Unity AudioClip.Create 的 lengthSamples 是 int 类型
+            // 最大值约为 2147483647 样本 ≈ 48541 秒 @ 44100Hz ≈ 13.5 小时
+            // 这对于大多数音乐来说足够了
+            const int MAX_SAMPLES = int.MaxValue - 1;
+
             if (info.TotalFrames > 0)
             {
-                // 已知长度 - 创建固定大小的 clip
-                lengthSamples = (int)info.TotalFrames;
+                // 已知长度 - 检查是否超出 int 范围
+                if (info.TotalFrames > (ulong)MAX_SAMPLES)
+                {
+                    Plugin.Log.LogWarning($"[StreamingAudioLoader] TotalFrames {info.TotalFrames} exceeds int max, clamping to {MAX_SAMPLES}");
+                    lengthSamples = MAX_SAMPLES;
+                }
+                else
+                {
+                    lengthSamples = (int)info.TotalFrames;
+                }
                 isStreaming = true; // 仍然使用流式读取
             }
             else
@@ -194,6 +234,14 @@ namespace ChillPatcher.UIFramework.Audio
                 // 未知长度 - 使用较大的缓冲区
                 lengthSamples = info.SampleRate * 600; // 10 分钟缓冲
                 isStreaming = true;
+            }
+
+            // 最终验证 - 确保样本数大于 0
+            if (lengthSamples <= 0)
+            {
+                Plugin.Log.LogError($"[StreamingAudioLoader] Invalid lengthSamples: {lengthSamples}, TotalFrames: {info.TotalFrames}");
+                // 回退到默认缓冲区大小
+                lengthSamples = info.SampleRate * 300; // 5 分钟缓冲
             }
 
             Plugin.Log.LogInfo($"[StreamingAudioLoader] Creating PCM stream clip: " +
@@ -220,7 +268,7 @@ namespace ChillPatcher.UIFramework.Audio
 
                 // 注册到 AudioResourceManager 以便后续清理
                 AudioResourceManager.Instance?.RegisterPcmStreamReader(source.UUID, clip, reader);
-                
+
                 // 设置活跃的 PCM 读取器（用于 Seek 操作）
                 Patches.UIFramework.MusicService_SetProgress_Patch.SetActivePcmReader(reader);
 
@@ -298,7 +346,7 @@ namespace ChillPatcher.UIFramework.Audio
         /// <param name="cancellationToken">取消令牌</param>
         /// <returns>加载的 AudioClip</returns>
         public static async Task<AudioClip> SmartLoadAsync(
-            GameAudioInfo audioInfo, 
+            GameAudioInfo audioInfo,
             CancellationToken cancellationToken = default)
         {
             if (audioInfo == null) return null;
@@ -310,9 +358,9 @@ namespace ChillPatcher.UIFramework.Audio
             }
 
             var music = MusicRegistry.Instance?.GetMusic(audioInfo.UUID);
-            
+
             // 流媒体源
-            if (music != null && (music.SourceType == MusicSourceType.Stream || 
+            if (music != null && (music.SourceType == MusicSourceType.Stream ||
                                    music.SourceType == MusicSourceType.Url))
             {
                 Plugin.Log.LogInfo($"[StreamingAudioLoader] Smart load - Streaming: {audioInfo.Title}");

@@ -16,7 +16,7 @@ namespace ChillPatcher.UIFramework.Music
     /// </summary>
     public class PlaylistListBuilder
     {
-        private static readonly BepInEx.Logging.ManualLogSource Logger = 
+        private static readonly BepInEx.Logging.ManualLogSource Logger =
             BepInEx.Logging.Logger.CreateLogSource("PlaylistBuilder");
 
         public PlaylistListBuilder()
@@ -63,7 +63,7 @@ namespace ChillPatcher.UIFramework.Music
             {
                 var song = songs[i];
                 var musicInfo = musicRegistry.GetMusic(song.UUID);
-                
+
                 if (musicInfo != null)
                 {
                     if (!string.IsNullOrEmpty(musicInfo.AlbumId))
@@ -106,7 +106,7 @@ namespace ChillPatcher.UIFramework.Music
         /// <summary>
         /// 添加有专辑信息的歌曲到结果
         /// </summary>
-        private async Task AddAlbumSongsToResult(
+        private Task AddAlbumSongsToResult(
             List<PlaylistListItem> result,
             Dictionary<string, List<(GameAudioInfo song, int idx, MusicInfo info)>> songsByAlbum,
             AlbumRegistry albumRegistry,
@@ -114,8 +114,9 @@ namespace ChillPatcher.UIFramework.Music
         {
             // 按专辑排序，增长专辑排在最后
             var orderedAlbums = songsByAlbum.Keys
-                .Select(albumId => new { 
-                    AlbumId = albumId, 
+                .Select(albumId => new
+                {
+                    AlbumId = albumId,
                     AlbumInfo = albumRegistry.GetAlbum(albumId)
                 })
                 .Where(x => x.AlbumInfo != null)
@@ -160,12 +161,14 @@ namespace ChillPatcher.UIFramework.Music
                     result.Add(PlaylistListItem.CreateSongItem(song, originalIndex));
                 }
             }
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
         /// 添加未分类的自定义歌曲到结果
         /// </summary>
-        private async Task AddUnknownSongsToResult(
+        private Task AddUnknownSongsToResult(
             List<PlaylistListItem> result,
             Dictionary<string, List<(GameAudioInfo song, int idx)>> unknownSongsByTag,
             TagRegistry tagRegistry,
@@ -183,11 +186,11 @@ namespace ChillPatcher.UIFramework.Music
                 var tagId = entry.TagId;
                 var tagSongs = entry.Songs;
                 var tagInfo = entry.TagInfo;
-                
+
                 if (tagSongs.Count == 0) continue;
 
                 string displayName = tagInfo?.DisplayName ?? tagId;
-                
+
                 var defaultAlbumId = $"{tagId}_default";
                 int enabledCount = tagSongs.Count;
 
@@ -214,6 +217,8 @@ namespace ChillPatcher.UIFramework.Music
                     result.Add(PlaylistListItem.CreateSongItem(song, originalIndex));
                 }
             }
+
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -228,19 +233,19 @@ namespace ChillPatcher.UIFramework.Music
             {
                 var nativeTag = kvp.Key;
                 var tagSongs = kvp.Value;
-                
+
                 if (tagSongs.Count == 0) continue;
 
                 string tagDisplayName = GetNativeTagDisplayName(nativeTag);
                 var nativeAlbumId = $"native_{nativeTag}";
-                
+
                 int enabledCount = 0;
                 foreach (var (song, _) in tagSongs)
                 {
                     if (!IsNativeSongExcluded(song.UUID))
                         enabledCount++;
                 }
-                
+
                 Sprite gameCover;
                 string artistName;
                 if (nativeTag == AudioTag.Local)
@@ -253,7 +258,7 @@ namespace ChillPatcher.UIFramework.Music
                     gameCover = CoverService.Instance.GetGameCover((int)nativeTag);
                     artistName = "Chill With You Game";
                 }
-                
+
                 var nativeHeader = new AlbumHeaderInfo
                 {
                     AlbumId = nativeAlbumId,
@@ -284,16 +289,16 @@ namespace ChillPatcher.UIFramework.Music
             var cleanTagWithoutFavorite = tag & ~AudioTag.Favorite;
             if (cleanTagWithoutFavorite == AudioTag.Local)
                 return AudioTag.Local;
-            
+
             var cleanTag = tag & ~AudioTag.Favorite & ~AudioTag.Local;
-            
+
             if (cleanTag.HasFlagFast(AudioTag.Original))
                 return AudioTag.Original;
             if (cleanTag.HasFlagFast(AudioTag.Special))
                 return AudioTag.Special;
             if (cleanTag.HasFlagFast(AudioTag.Other))
                 return AudioTag.Other;
-            
+
             return AudioTag.Other;
         }
 
@@ -350,7 +355,7 @@ namespace ChillPatcher.UIFramework.Music
                 .ToList();
 
             var topArtist = artistCounts.First();
-            
+
             if (topArtist.Count() >= songs.Count * 0.5f)
                 return topArtist.Key;
 

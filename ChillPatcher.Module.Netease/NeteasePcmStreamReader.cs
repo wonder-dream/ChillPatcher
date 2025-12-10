@@ -16,11 +16,18 @@ namespace ChillPatcher.Module.Netease
         private ulong _currentFrame;
         private bool _isEndOfStream;
         private bool _disposed;
+        private readonly object _lock = new object();
 
         public PcmStreamInfo Info => _info;
-        public ulong CurrentFrame => _currentFrame;
-        public bool IsEndOfStream => _isEndOfStream;
-        public bool IsReady => _bridge.IsPcmStreamReady(_streamId);
+        public ulong CurrentFrame
+        {
+            get { lock (_lock) { return _currentFrame; } }
+        }
+        public bool IsEndOfStream
+        {
+            get { lock (_lock) { return _isEndOfStream; } }
+        }
+        public bool IsReady => !_disposed && _bridge?.IsPcmStreamReady(_streamId) == true;
 
         /// <summary>
         /// 创建 PCM 流读取器
@@ -34,12 +41,12 @@ namespace ChillPatcher.Module.Netease
         {
             _bridge = bridge;
             _streamId = streamId;
-            
+
             // 基于时长计算预估总帧数
-            ulong estimatedFrames = durationSeconds > 0 
-                ? (ulong)(sampleRate * durationSeconds) 
+            ulong estimatedFrames = durationSeconds > 0
+                ? (ulong)(sampleRate * durationSeconds)
                 : 0;
-            
+
             _info = new PcmStreamInfo
             {
                 SampleRate = sampleRate,
@@ -69,15 +76,15 @@ namespace ChillPatcher.Module.Netease
             {
                 // 保存原始预估的时长（基于 API 返回的歌曲时长）
                 // 这个值是准确的，比 FLAC 头部的 NSamples 更可靠
-                var estimatedDuration = _info.TotalFrames > 0 
-                    ? (float)_info.TotalFrames / 44100 
+                var estimatedDuration = _info.TotalFrames > 0
+                    ? (float)_info.TotalFrames / 44100
                     : 0;
-                
+
                 _info.SampleRate = info.SampleRate;
                 _info.Channels = info.Channels;
                 _info.Format = info.Format;
                 _info.CanSeek = info.CanSeek;
-                
+
                 // 始终优先使用基于 API 歌曲时长计算的预估帧数
                 // 因为 FLAC 流式解码时头部可能不完整，导致 NSamples 值不正确
                 if (estimatedDuration > 0)
@@ -97,72 +104,102 @@ namespace ChillPatcher.Module.Netease
 
         public long ReadFrames(float[] buffer, int framesToRead)
         {
-            if (_disposed || _isEndOfStream)
-                return 0;
-
-            var result = _bridge.ReadPcmFrames(_streamId, buffer, framesToRead);
-
-            if (result == -2) // EOF
+            lock (_lock)
             {
-                _isEndOfStream = true;
-                return 0;
-            }
+                if (_disposed || _isEndOfStream)
+                    return 0;
 
-            if (result == -1) // Error
-            {
-                _isEndOfStream = true;
-                return -1;
-            }
+                if (buffer == null || buffer.Length == 0 || framesToRead <= 0)
+                    return 0;
 
-            if (result > 0)
-            {
-                _currentFrame += (ulong)result;
-            }
+                if (_bridge == null)
+                {
+                    _isEndOfStream = true;
+                    return 0;
+                }
 
-            return result;
+                try
+                {
+                    var result = _bridge.ReadPcmFrames(_streamId, buffer, framesToRead);
+
+                    if (result == -2) // EOF
+                    {
+                        _isEndOfStream = true;
+                        return 0;
+                    }
+
+                    if (result == -1) // Error
+                    {
+                        _isEndOfStream = true;
+                        return -1;
+                    }
+
+                    if (result > 0)
+                    {
+                        _currentFrame += (ulong)result;
+                    }
+
+                    return result;
+                }
+                catch (Exception)
+                {
+                    _isEndOfStream = true;
+                    return -1;
+                }
+            }
         }
 
         public bool Seek(ulong frameIndex)
         {
-            if (_disposed)
-                return false;
+            lock (_lock)
+            {
+                if (_disposed || _bridge == null)
+                    return false;
 
-            // 尝试 Seek
-            var result = _bridge.SeekPcmStream(_streamId, (long)frameIndex);
-            
-            if (result == 0)
-            {
-                // Seek 成功
-                _currentFrame = frameIndex;
-                _isEndOfStream = false;
-                return true;
+                try
+                {
+                    // 尝试 Seek
+                    var result = _bridge.SeekPcmStream(_streamId, (long)frameIndex);
+
+                    if (result == 0)
+                    {
+                        // Seek 成功
+                        _currentFrame = frameIndex;
+                        _isEndOfStream = false;
+                        return true;
+                    }
+                    else if (result == -3)
+                    {
+                        // 延迟 Seek 已设置，更新当前帧位置（UI 显示用）
+                        _currentFrame = frameIndex;
+                        _isEndOfStream = false;
+                        return true; // 返回 true 让 UI 更新位置
+                    }
+                    else if (result == -2)
+                    {
+                        // 缓存还没下载完，不支持 Seek（旧行为，不应该再触发）
+                        return false;
+                    }
+
+                    // 其他错误
+                    return false;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
             }
-            else if (result == -3)
-            {
-                // 延迟 Seek 已设置，更新当前帧位置（UI 显示用）
-                _currentFrame = frameIndex;
-                _isEndOfStream = false;
-                return true; // 返回 true 让 UI 更新位置
-            }
-            else if (result == -2)
-            {
-                // 缓存还没下载完，不支持 Seek（旧行为，不应该再触发）
-                return false;
-            }
-            
-            // 其他错误
-            return false;
         }
 
         /// <summary>
         /// 检查是否可以 Seek（缓存是否下载完成）
         /// </summary>
-        public bool CanSeek => _bridge.CanSeekPcmStream(_streamId);
+        public bool CanSeek => !_disposed && _bridge?.CanSeekPcmStream(_streamId) == true;
 
         /// <summary>
         /// 获取缓存下载进度（0-100）
         /// </summary>
-        public double CacheProgress => _bridge.GetCacheProgress(_streamId);
+        public double CacheProgress => _disposed || _bridge == null ? 0 : _bridge.GetCacheProgress(_streamId);
 
         /// <summary>
         /// 缓存是否下载完成
@@ -172,24 +209,41 @@ namespace ChillPatcher.Module.Netease
         /// <summary>
         /// 检查是否有待定的 Seek
         /// </summary>
-        public bool HasPendingSeek => _bridge.HasPendingSeek(_streamId);
+        public bool HasPendingSeek => !_disposed && _bridge?.HasPendingSeek(_streamId) == true;
 
         /// <summary>
         /// 获取待定 Seek 的目标帧
         /// </summary>
-        public long PendingSeekFrame => _bridge.GetPendingSeekFrame(_streamId);
+        public long PendingSeekFrame => _disposed || _bridge == null ? 0 : _bridge.GetPendingSeekFrame(_streamId);
 
         /// <summary>
         /// 取消待定的 Seek
         /// </summary>
-        public void CancelPendingSeek() => _bridge.CancelPendingSeek(_streamId);
+        public void CancelPendingSeek()
+        {
+            if (!_disposed && _bridge != null)
+            {
+                _bridge.CancelPendingSeek(_streamId);
+            }
+        }
 
         public void Dispose()
         {
-            if (!_disposed)
+            lock (_lock)
             {
-                _disposed = true;
-                _bridge.ClosePcmStream(_streamId);
+                if (!_disposed)
+                {
+                    _disposed = true;
+                    _isEndOfStream = true;
+                    try
+                    {
+                        _bridge?.ClosePcmStream(_streamId);
+                    }
+                    catch (Exception)
+                    {
+                        // 忽略关闭时的异常
+                    }
+                }
             }
         }
     }

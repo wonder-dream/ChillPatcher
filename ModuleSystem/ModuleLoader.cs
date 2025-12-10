@@ -135,9 +135,25 @@ namespace ChillPatcher.ModuleSystem
         /// </summary>
         public async Task LoadAllModulesAsync()
         {
-            _logger.LogInfo($"开始扫描模块目录: {_modulesPath}");
+            _logger?.LogInfo($"开始扫描模块目录: {_modulesPath}");
 
-            var moduleDirectories = Directory.GetDirectories(_modulesPath);
+            if (!Directory.Exists(_modulesPath))
+            {
+                _logger?.LogWarning($"模块目录不存在: {_modulesPath}");
+                return;
+            }
+
+            string[] moduleDirectories;
+            try
+            {
+                moduleDirectories = Directory.GetDirectories(_modulesPath);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"获取模块目录列表失败: {ex.Message}");
+                return;
+            }
+
             var discoveredModules = new List<(IMusicModule module, Assembly assembly)>();
 
             foreach (var moduleDir in moduleDirectories)
@@ -145,34 +161,47 @@ namespace ChillPatcher.ModuleSystem
                 try
                 {
                     var modules = DiscoverModulesInDirectory(moduleDir);
-                    discoveredModules.AddRange(modules);
+                    if (modules != null)
+                    {
+                        discoveredModules.AddRange(modules);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"扫描模块目录失败 '{moduleDir}': {ex.Message}");
+                    _logger?.LogError($"扫描模块目录失败 '{moduleDir}': {ex.Message}");
                 }
             }
 
             // 按优先级排序
-            discoveredModules.Sort((a, b) => a.module.Priority.CompareTo(b.module.Priority));
+            discoveredModules.Sort((a, b) => (a.module?.Priority ?? 0).CompareTo(b.module?.Priority ?? 0));
 
-            _logger.LogInfo($"发现 {discoveredModules.Count} 个模块，开始加载...");
+            _logger?.LogInfo($"发现 {discoveredModules.Count} 个模块，开始加载...");
 
             // 依次初始化模块
             foreach (var (module, assembly) in discoveredModules)
             {
+                if (module == null) continue;
+
                 try
                 {
                     await InitializeModuleAsync(module, assembly);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"初始化模块 '{module.ModuleId}' 失败: {ex}");
+                    _logger?.LogError($"初始化模块 '{module.ModuleId}' 失败: {ex}");
                 }
             }
 
-            _logger.LogInfo($"模块加载完成，共加载 {_loadedModules.Count} 个模块");
-            OnAllModulesLoaded?.Invoke();
+            _logger?.LogInfo($"模块加载完成，共加载 {_loadedModules.Count} 个模块");
+
+            try
+            {
+                OnAllModulesLoaded?.Invoke();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"OnAllModulesLoaded 事件处理异常: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -193,8 +222,8 @@ namespace ChillPatcher.ModuleSystem
 
                     var assembly = Assembly.LoadFrom(dllPath);
                     var moduleTypes = assembly.GetTypes()
-                        .Where(t => typeof(IMusicModule).IsAssignableFrom(t) 
-                                   && !t.IsInterface 
+                        .Where(t => typeof(IMusicModule).IsAssignableFrom(t)
+                                   && !t.IsInterface
                                    && !t.IsAbstract);
 
                     foreach (var moduleType in moduleTypes)
@@ -213,15 +242,18 @@ namespace ChillPatcher.ModuleSystem
                 }
                 catch (ReflectionTypeLoadException ex)
                 {
-                    _logger.LogWarning($"加载程序集 '{dllPath}' 时部分类型加载失败");
-                    foreach (var loaderEx in ex.LoaderExceptions.Where(e => e != null))
+                    _logger?.LogWarning($"加载程序集 '{dllPath}' 时部分类型加载失败");
+                    if (ex.LoaderExceptions != null)
                     {
-                        _logger.LogWarning($"  - {loaderEx.Message}");
+                        foreach (var loaderEx in ex.LoaderExceptions.Where(e => e != null))
+                        {
+                            _logger?.LogWarning($"  - {loaderEx.Message}");
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning($"加载程序集 '{dllPath}' 失败: {ex.Message}");
+                    _logger?.LogWarning($"加载程序集 '{dllPath}' 失败: {ex.Message}");
                 }
             }
 
@@ -233,31 +265,59 @@ namespace ChillPatcher.ModuleSystem
         /// </summary>
         private async Task InitializeModuleAsync(IMusicModule module, Assembly assembly)
         {
-            _logger.LogInfo($"初始化模块: {module.DisplayName} ({module.ModuleId})");
-
-            // 为此模块创建独立的上下文（包含独立的配置管理器）
-            var moduleContext = _contextFactory.CreateContext(module.ModuleId);
-
-            // 调用模块初始化
-            await module.InitializeAsync(moduleContext);
-
-            // 启用模块
-            module.OnEnable();
-
-            // 记录已加载的模块
-            var loadedModule = new LoadedModule
+            if (module == null)
             {
-                Module = module,
-                Assembly = assembly,
-                ModuleDirectory = Path.GetDirectoryName(assembly.Location),
-                LoadedAt = DateTime.Now,
-                Context = moduleContext
-            };
+                _logger?.LogWarning("InitializeModuleAsync: module is null");
+                return;
+            }
 
-            _loadedModules.Add(loadedModule);
+            _logger?.LogInfo($"初始化模块: {module.DisplayName} ({module.ModuleId})");
 
-            OnModuleLoaded?.Invoke(module);
-            _logger.LogInfo($"模块 '{module.DisplayName}' 加载成功");
+            IModuleContext moduleContext = null;
+            try
+            {
+                // 为此模块创建独立的上下文（包含独立的配置管理器）
+                moduleContext = _contextFactory?.CreateContext(module.ModuleId);
+                if (moduleContext == null)
+                {
+                    _logger?.LogError($"创建模块上下文失败: {module.ModuleId}");
+                    return;
+                }
+
+                // 调用模块初始化
+                await module.InitializeAsync(moduleContext);
+
+                // 启用模块
+                module.OnEnable();
+
+                // 记录已加载的模块
+                var loadedModule = new LoadedModule
+                {
+                    Module = module,
+                    Assembly = assembly,
+                    ModuleDirectory = assembly != null ? Path.GetDirectoryName(assembly.Location) : null,
+                    LoadedAt = DateTime.Now,
+                    Context = moduleContext
+                };
+
+                _loadedModules.Add(loadedModule);
+
+                try
+                {
+                    OnModuleLoaded?.Invoke(module);
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning($"OnModuleLoaded 事件处理异常: {ex.Message}");
+                }
+
+                _logger?.LogInfo($"模块 '{module.DisplayName}' 加载成功");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"模块初始化异常 '{module.ModuleId}': {ex}");
+                throw; // 重新抛出让调用者知道
+            }
         }
 
         /// <summary>
@@ -265,7 +325,8 @@ namespace ChillPatcher.ModuleSystem
         /// </summary>
         public IMusicModule GetModule(string moduleId)
         {
-            return _loadedModules.FirstOrDefault(m => m.Module.ModuleId == moduleId)?.Module;
+            if (string.IsNullOrEmpty(moduleId)) return null;
+            return _loadedModules.FirstOrDefault(m => m?.Module?.ModuleId == moduleId)?.Module;
         }
 
         /// <summary>
@@ -283,6 +344,7 @@ namespace ChillPatcher.ModuleSystem
         public IEnumerable<T> GetAllProviders<T>() where T : class
         {
             return _loadedModules
+                .Where(m => m?.Module != null)
                 .Select(m => m.Module as T)
                 .Where(p => p != null);
         }
@@ -292,19 +354,21 @@ namespace ChillPatcher.ModuleSystem
         /// </summary>
         public void UnloadAllModules()
         {
-            _logger.LogInfo("开始卸载所有模块...");
+            _logger?.LogInfo("开始卸载所有模块...");
 
             foreach (var loadedModule in _loadedModules.ToList())
             {
+                if (loadedModule?.Module == null) continue;
+
                 try
                 {
                     loadedModule.Module.OnDisable();
                     loadedModule.Module.OnUnload();
-                    _logger.LogInfo($"模块 '{loadedModule.Module.DisplayName}' 已卸载");
+                    _logger?.LogInfo($"模块 '{loadedModule.Module.DisplayName}' 已卸载");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError($"卸载模块 '{loadedModule.Module.ModuleId}' 失败: {ex.Message}");
+                    _logger?.LogError($"卸载模块 '{loadedModule.Module.ModuleId}' 失败: {ex.Message}");
                 }
             }
 
@@ -313,8 +377,18 @@ namespace ChillPatcher.ModuleSystem
 
         public void Dispose()
         {
-            UnloadAllModules();
-            _instance = null;
+            try
+            {
+                UnloadAllModules();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError($"Dispose 异常: {ex.Message}");
+            }
+            finally
+            {
+                _instance = null;
+            }
         }
     }
 
@@ -327,7 +401,7 @@ namespace ChillPatcher.ModuleSystem
         public Assembly Assembly { get; set; }
         public string ModuleDirectory { get; set; }
         public DateTime LoadedAt { get; set; }
-        
+
         /// <summary>
         /// 模块的独立上下文（包含独立的配置管理器）
         /// </summary>

@@ -71,7 +71,12 @@ namespace ChillPatcher.Module.Netease
         /// <summary>
         /// 开始二维码登录流程
         /// </summary>
-        public async Task<bool> StartLoginAsync()
+        public Task<bool> StartLoginAsync()
+        {
+            return Task.FromResult(StartLoginInternal());
+        }
+
+        private bool StartLoginInternal()
         {
             try
             {
@@ -107,7 +112,7 @@ namespace ChillPatcher.Module.Netease
             }
             catch (Exception ex)
             {
-                _logger.LogError($"[QRLoginManager] StartLoginAsync exception: {ex}");
+                _logger.LogError($"[QRLoginManager] StartLoginInternal exception: {ex}");
                 OnLoginFailed?.Invoke("启动登录失败: " + ex.Message);
                 return false;
             }
@@ -171,22 +176,38 @@ namespace ChillPatcher.Module.Netease
         /// </summary>
         public void CancelLogin()
         {
-            CancelPolling();
-            _bridge.CancelQRLogin();
-            _currentState = null;
-            
-            CleanupQRCodeResources();
+            try
+            {
+                CancelPolling();
+                _bridge?.CancelQRLogin();
+                _currentState = null;
+                CleanupQRCodeResources();
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning($"[QRLoginManager] CancelLogin exception: {ex.Message}");
+            }
         }
 
         private void CancelPolling()
         {
-            if (_pollingCts != null)
+            try
             {
-                _pollingCts.Cancel();
-                _pollingCts.Dispose();
-                _pollingCts = null;
+                if (_pollingCts != null)
+                {
+                    _pollingCts.Cancel();
+                    _pollingCts.Dispose();
+                    _pollingCts = null;
+                }
             }
-            _isPolling = false;
+            catch (ObjectDisposedException)
+            {
+                // 已经 dispose 了，忽略
+            }
+            finally
+            {
+                _isPolling = false;
+            }
         }
 
         /// <summary>
@@ -194,13 +215,26 @@ namespace ChillPatcher.Module.Netease
         /// </summary>
         private void CleanupQRCodeResources()
         {
-            if (_qrCodeSprite != null && _qrCodeSprite.texture != null)
+            try
             {
-                UnityEngine.Object.Destroy(_qrCodeSprite.texture);
-                UnityEngine.Object.Destroy(_qrCodeSprite);
-                _qrCodeSprite = null;
+                if (_qrCodeSprite != null)
+                {
+                    if (_qrCodeSprite.texture != null)
+                    {
+                        UnityEngine.Object.Destroy(_qrCodeSprite.texture);
+                    }
+                    UnityEngine.Object.Destroy(_qrCodeSprite);
+                    _qrCodeSprite = null;
+                }
             }
-            _qrCodeBytes = null;
+            catch (Exception ex)
+            {
+                _logger?.LogWarning($"[QRLoginManager] CleanupQRCodeResources exception: {ex.Message}");
+            }
+            finally
+            {
+                _qrCodeBytes = null;
+            }
         }
 
         /// <summary>
@@ -208,8 +242,17 @@ namespace ChillPatcher.Module.Netease
         /// </summary>
         private void GenerateQRCodeSprite(string url)
         {
+            if (string.IsNullOrEmpty(url))
+            {
+                _logger?.LogWarning("[QRLoginManager] GenerateQRCodeSprite: URL 为空");
+                return;
+            }
+
             try
             {
+                // 先清理旧资源
+                CleanupQRCodeResources();
+
                 using (var qrGenerator = new QRCodeGenerator())
                 {
                     var qrCodeData = qrGenerator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
@@ -219,9 +262,20 @@ namespace ChillPatcher.Module.Netease
                     }
                 }
 
+                if (_qrCodeBytes == null || _qrCodeBytes.Length == 0)
+                {
+                    _logger?.LogError("[QRLoginManager] 二维码生成失败：字节数据为空");
+                    return;
+                }
+
                 // 创建 Unity Texture 和 Sprite
                 var texture = new Texture2D(2, 2);
-                texture.LoadImage(_qrCodeBytes);
+                if (!texture.LoadImage(_qrCodeBytes))
+                {
+                    _logger?.LogError("[QRLoginManager] 加载二维码图片失败");
+                    UnityEngine.Object.Destroy(texture);
+                    return;
+                }
                 texture.filterMode = FilterMode.Point; // 二维码需要锐利的边缘
 
                 _qrCodeSprite = Sprite.Create(
@@ -229,11 +283,11 @@ namespace ChillPatcher.Module.Netease
                     new Rect(0, 0, texture.width, texture.height),
                     new Vector2(0.5f, 0.5f));
 
-                _logger.LogInfo($"[QRLoginManager] 二维码生成成功: {texture.width}x{texture.height}");
+                _logger?.LogInfo($"[QRLoginManager] 二维码生成成功: {texture.width}x{texture.height}");
             }
             catch (Exception ex)
             {
-                _logger.LogError($"[QRLoginManager] 生成二维码失败: {ex}");
+                _logger?.LogError($"[QRLoginManager] 生成二维码失败: {ex}");
             }
         }
     }

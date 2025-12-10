@@ -303,55 +303,113 @@ namespace ChillPatcher
         /// </summary>
         private static void SyncMusicRemovalToGameService(string musicUUID)
         {
+            if (string.IsNullOrEmpty(musicUUID))
+                return;
+
             try
             {
                 var musicService = Patches.UIFramework.MusicService_RemoveLimit_Patch.CurrentInstance;
                 if (musicService == null)
+                {
+                    Logger.LogWarning($"[MusicSync] MusicService is null, cannot remove: {musicUUID}");
                     return;
+                }
 
-                // 检查是否是当前正在播放的歌曲
-                bool isCurrentlyPlaying = musicService.PlayingMusic?.UUID == musicUUID;
+                // 检查是否是当前正在播放的歌曲（防御性检查）
+                bool isCurrentlyPlaying = false;
+                try
+                {
+                    isCurrentlyPlaying = musicService.PlayingMusic?.UUID == musicUUID;
+                }
+                catch
+                {
+                    // 忽略访问错误
+                }
 
                 // 从 _allMusicList 移除（核心列表）
-                var allMusicList = HarmonyLib.Traverse.Create(musicService)
-                    .Field("_allMusicList")
-                    .GetValue<System.Collections.Generic.List<Bulbul.GameAudioInfo>>();
-                var allToRemove = allMusicList?.FirstOrDefault(a => a.UUID == musicUUID);
-                if (allToRemove != null)
+                try
                 {
-                    allMusicList.Remove(allToRemove);
-                    Logger.LogDebug($"[MusicSync] Removed from _allMusicList: {musicUUID}");
+                    var allMusicList = HarmonyLib.Traverse.Create(musicService)
+                        .Field("_allMusicList")
+                        .GetValue<System.Collections.Generic.List<Bulbul.GameAudioInfo>>();
+                    if (allMusicList != null)
+                    {
+                        var allToRemove = allMusicList.FirstOrDefault(a => a?.UUID == musicUUID);
+                        if (allToRemove != null)
+                        {
+                            allMusicList.Remove(allToRemove);
+                            Logger.LogDebug($"[MusicSync] Removed from _allMusicList: {musicUUID}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning($"[MusicSync] Error removing from _allMusicList: {ex.Message}");
                 }
 
                 // 从 shuffleList 移除
-                var shuffleList = HarmonyLib.Traverse.Create(musicService)
-                    .Field("shuffleList")
-                    .GetValue<System.Collections.Generic.List<Bulbul.GameAudioInfo>>();
-                var shuffleToRemove = shuffleList?.FirstOrDefault(a => a.UUID == musicUUID);
-                if (shuffleToRemove != null)
+                try
                 {
-                    shuffleList.Remove(shuffleToRemove);
-                    Logger.LogDebug($"[MusicSync] Removed from shuffleList: {musicUUID}");
+                    var shuffleList = HarmonyLib.Traverse.Create(musicService)
+                        .Field("shuffleList")
+                        .GetValue<System.Collections.Generic.List<Bulbul.GameAudioInfo>>();
+                    if (shuffleList != null)
+                    {
+                        var shuffleToRemove = shuffleList.FirstOrDefault(a => a?.UUID == musicUUID);
+                        if (shuffleToRemove != null)
+                        {
+                            shuffleList.Remove(shuffleToRemove);
+                            Logger.LogDebug($"[MusicSync] Removed from shuffleList: {musicUUID}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning($"[MusicSync] Error removing from shuffleList: {ex.Message}");
                 }
 
                 // 从 CurrentPlayList 移除
-                var currentPlayList = musicService.CurrentPlayList;
-                var toRemove = currentPlayList?.FirstOrDefault(a => a.UUID == musicUUID);
-                if (toRemove != null)
+                try
                 {
-                    currentPlayList.Remove(toRemove);
-                    Logger.LogInfo($"[MusicSync] Removed from CurrentPlayList: {musicUUID}");
+                    var currentPlayList = musicService.CurrentPlayList;
+                    if (currentPlayList != null)
+                    {
+                        var toRemove = currentPlayList.FirstOrDefault(a => a?.UUID == musicUUID);
+                        if (toRemove != null)
+                        {
+                            currentPlayList.Remove(toRemove);
+                            Logger.LogInfo($"[MusicSync] Removed from CurrentPlayList: {musicUUID}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning($"[MusicSync] Error removing from CurrentPlayList: {ex.Message}");
                 }
 
                 // 从 PlayQueueManager 移除（包括队列和历史）
-                UIFramework.Music.PlayQueueManager.Instance?.OnSongExcluded(musicUUID);
-                Logger.LogDebug($"[MusicSync] Removed from PlayQueue: {musicUUID}");
+                try
+                {
+                    UIFramework.Music.PlayQueueManager.Instance?.OnSongExcluded(musicUUID);
+                    Logger.LogDebug($"[MusicSync] Removed from PlayQueue: {musicUUID}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning($"[MusicSync] Error removing from PlayQueue: {ex.Message}");
+                }
 
                 // 如果移除的是当前播放的歌曲，自动播放下一首
                 if (isCurrentlyPlaying)
                 {
-                    Logger.LogInfo($"[MusicSync] Current playing song was removed, skipping to next...");
-                    musicService.SkipCurrentMusic(MusicChangeKind.Auto).Forget();
+                    try
+                    {
+                        Logger.LogInfo($"[MusicSync] Current playing song was removed, skipping to next...");
+                        musicService.SkipCurrentMusic(MusicChangeKind.Auto).Forget();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogWarning($"[MusicSync] Error skipping to next: {ex.Message}");
+                    }
                 }
             }
             catch (Exception ex)

@@ -14,10 +14,29 @@ namespace ChillPatcher.UIFramework.Audio
     public class AudioResourceManager
     {
         private static AudioResourceManager _instance;
-        public static AudioResourceManager Instance => _instance ??= new AudioResourceManager();
+        private static readonly object _instanceLock = new object();
+
+        public static AudioResourceManager Instance
+        {
+            get
+            {
+                if (_instance == null)
+                {
+                    lock (_instanceLock)
+                    {
+                        if (_instance == null)
+                        {
+                            _instance = new AudioResourceManager();
+                        }
+                    }
+                }
+                return _instance;
+            }
+        }
 
         private readonly ManualLogSource _logger;
-        
+        private readonly object _lock = new object();
+
         /// <summary>
         /// 跟踪 AudioClip 和其关联的 FlacStreamReader（本地 FLAC）
         /// </summary>
@@ -32,7 +51,7 @@ namespace ChillPatcher.UIFramework.Audio
         /// 跟踪 AudioClip 和其关联的 UrlFlacLoader（URL FLAC 边下边播）
         /// </summary>
         private readonly Dictionary<int, UrlFlacLoader> _urlFlacLoaders = new Dictionary<int, UrlFlacLoader>();
-        
+
         /// <summary>
         /// 跟踪 UUID 和其关联的 AudioClip InstanceID
         /// </summary>
@@ -53,21 +72,24 @@ namespace ChillPatcher.UIFramework.Audio
         {
             if (clip == null) return;
 
-            var clipId = clip.GetInstanceID();
-            
-            _flacStreamReaders[clipId] = streamReader;
-            
-            if (!string.IsNullOrEmpty(uuid))
+            lock (_lock)
             {
-                // 如果这个 UUID 已经有关联的 clip，先清理旧的
-                if (_uuidToClipId.TryGetValue(uuid, out var oldClipId) && oldClipId != clipId)
-                {
-                    CleanupClipInternal(oldClipId);
-                }
-                _uuidToClipId[uuid] = clipId;
-            }
+                var clipId = clip.GetInstanceID();
 
-            _logger.LogDebug($"Registered FLAC streaming clip: {uuid} (ClipID: {clipId})");
+                _flacStreamReaders[clipId] = streamReader;
+
+                if (!string.IsNullOrEmpty(uuid))
+                {
+                    // 如果这个 UUID 已经有关联的 clip，先清理旧的
+                    if (_uuidToClipId.TryGetValue(uuid, out var oldClipId) && oldClipId != clipId)
+                    {
+                        CleanupClipInternal(oldClipId);
+                    }
+                    _uuidToClipId[uuid] = clipId;
+                }
+
+                _logger?.LogDebug($"Registered FLAC streaming clip: {uuid} (ClipID: {clipId})");
+            }
         }
 
         /// <summary>
@@ -80,21 +102,24 @@ namespace ChillPatcher.UIFramework.Audio
         {
             if (clip == null) return;
 
-            var clipId = clip.GetInstanceID();
-            
-            _pcmStreamReaders[clipId] = pcmReader;
-            
-            if (!string.IsNullOrEmpty(uuid))
+            lock (_lock)
             {
-                // 如果这个 UUID 已经有关联的 clip，先清理旧的
-                if (_uuidToClipId.TryGetValue(uuid, out var oldClipId) && oldClipId != clipId)
-                {
-                    CleanupClipInternal(oldClipId);
-                }
-                _uuidToClipId[uuid] = clipId;
-            }
+                var clipId = clip.GetInstanceID();
 
-            _logger.LogDebug($"Registered PCM stream clip: {uuid} (ClipID: {clipId})");
+                _pcmStreamReaders[clipId] = pcmReader;
+
+                if (!string.IsNullOrEmpty(uuid))
+                {
+                    // 如果这个 UUID 已经有关联的 clip，先清理旧的
+                    if (_uuidToClipId.TryGetValue(uuid, out var oldClipId) && oldClipId != clipId)
+                    {
+                        CleanupClipInternal(oldClipId);
+                    }
+                    _uuidToClipId[uuid] = clipId;
+                }
+
+                _logger?.LogDebug($"Registered PCM stream clip: {uuid} (ClipID: {clipId})");
+            }
         }
 
         /// <summary>
@@ -107,21 +132,24 @@ namespace ChillPatcher.UIFramework.Audio
         {
             if (clip == null) return;
 
-            var clipId = clip.GetInstanceID();
-            
-            _urlFlacLoaders[clipId] = loader;
-            
-            if (!string.IsNullOrEmpty(uuid))
+            lock (_lock)
             {
-                // 如果这个 UUID 已经有关联的 clip，先清理旧的
-                if (_uuidToClipId.TryGetValue(uuid, out var oldClipId) && oldClipId != clipId)
-                {
-                    CleanupClipInternal(oldClipId);
-                }
-                _uuidToClipId[uuid] = clipId;
-            }
+                var clipId = clip.GetInstanceID();
 
-            _logger.LogDebug($"Registered URL FLAC loader: {uuid} (ClipID: {clipId})");
+                _urlFlacLoaders[clipId] = loader;
+
+                if (!string.IsNullOrEmpty(uuid))
+                {
+                    // 如果这个 UUID 已经有关联的 clip，先清理旧的
+                    if (_uuidToClipId.TryGetValue(uuid, out var oldClipId) && oldClipId != clipId)
+                    {
+                        CleanupClipInternal(oldClipId);
+                    }
+                    _uuidToClipId[uuid] = clipId;
+                }
+
+                _logger?.LogDebug($"Registered URL FLAC loader: {uuid} (ClipID: {clipId})");
+            }
         }
 
         /// <summary>
@@ -132,11 +160,14 @@ namespace ChillPatcher.UIFramework.Audio
         {
             if (string.IsNullOrEmpty(uuid)) return;
 
-            if (_uuidToClipId.TryGetValue(uuid, out var clipId))
+            lock (_lock)
             {
-                CleanupClipInternal(clipId);
-                _uuidToClipId.Remove(uuid);
-                _logger.LogDebug($"Cleaned up audio resources for: {uuid}");
+                if (_uuidToClipId.TryGetValue(uuid, out var clipId))
+                {
+                    CleanupClipInternal(clipId);
+                    _uuidToClipId.Remove(uuid);
+                    _logger?.LogDebug($"Cleaned up audio resources for: {uuid}");
+                }
             }
         }
 
@@ -147,11 +178,14 @@ namespace ChillPatcher.UIFramework.Audio
         public void CleanupClip(AudioClip clip)
         {
             if (clip == null) return;
-            CleanupClipInternal(clip.GetInstanceID());
+            lock (_lock)
+            {
+                CleanupClipInternal(clip.GetInstanceID());
+            }
         }
 
         /// <summary>
-        /// 内部清理方法
+        /// 内部清理方法（调用前必须持有 _lock）
         /// </summary>
         private void CleanupClipInternal(int clipId)
         {
@@ -161,11 +195,11 @@ namespace ChillPatcher.UIFramework.Audio
                 try
                 {
                     flacReader?.Dispose();
-                    _logger.LogDebug($"Disposed FlacStreamReader for ClipID: {clipId}");
+                    _logger?.LogDebug($"Disposed FlacStreamReader for ClipID: {clipId}");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning($"Error disposing FlacStreamReader: {ex.Message}");
+                    _logger?.LogWarning($"Error disposing FlacStreamReader: {ex.Message}");
                 }
                 _flacStreamReaders.Remove(clipId);
             }
@@ -180,13 +214,13 @@ namespace ChillPatcher.UIFramework.Audio
                     {
                         Patches.UIFramework.MusicService_SetProgress_Patch.ClearActivePcmReader();
                     }
-                    
+
                     pcmReader?.Dispose();
-                    _logger.LogDebug($"Disposed IPcmStreamReader for ClipID: {clipId}");
+                    _logger?.LogDebug($"Disposed IPcmStreamReader for ClipID: {clipId}");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning($"Error disposing IPcmStreamReader: {ex.Message}");
+                    _logger?.LogWarning($"Error disposing IPcmStreamReader: {ex.Message}");
                 }
                 _pcmStreamReaders.Remove(clipId);
             }
@@ -197,11 +231,11 @@ namespace ChillPatcher.UIFramework.Audio
                 try
                 {
                     urlFlacLoader?.Dispose();
-                    _logger.LogDebug($"Disposed UrlFlacLoader for ClipID: {clipId}");
+                    _logger?.LogDebug($"Disposed UrlFlacLoader for ClipID: {clipId}");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning($"Error disposing UrlFlacLoader: {ex.Message}");
+                    _logger?.LogWarning($"Error disposing UrlFlacLoader: {ex.Message}");
                 }
                 _urlFlacLoaders.Remove(clipId);
             }
@@ -212,52 +246,64 @@ namespace ChillPatcher.UIFramework.Audio
         /// </summary>
         public void CleanupAll()
         {
-            foreach (var reader in _flacStreamReaders.Values)
+            lock (_lock)
             {
-                try
+                foreach (var reader in _flacStreamReaders.Values)
                 {
-                    reader?.Dispose();
+                    try
+                    {
+                        reader?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning($"Error disposing FlacStreamReader: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning($"Error disposing FlacStreamReader: {ex.Message}");
-                }
-            }
-            _flacStreamReaders.Clear();
+                _flacStreamReaders.Clear();
 
-            foreach (var reader in _pcmStreamReaders.Values)
-            {
-                try
+                foreach (var reader in _pcmStreamReaders.Values)
                 {
-                    reader?.Dispose();
+                    try
+                    {
+                        reader?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning($"Error disposing IPcmStreamReader: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning($"Error disposing IPcmStreamReader: {ex.Message}");
-                }
-            }
-            _pcmStreamReaders.Clear();
+                _pcmStreamReaders.Clear();
 
-            foreach (var loader in _urlFlacLoaders.Values)
-            {
-                try
+                foreach (var loader in _urlFlacLoaders.Values)
                 {
-                    loader?.Dispose();
+                    try
+                    {
+                        loader?.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogWarning($"Error disposing UrlFlacLoader: {ex.Message}");
+                    }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning($"Error disposing UrlFlacLoader: {ex.Message}");
-                }
-            }
-            _urlFlacLoaders.Clear();
+                _urlFlacLoaders.Clear();
 
-            _uuidToClipId.Clear();
-            _logger.LogInfo("Cleaned up all audio resources");
+                _uuidToClipId.Clear();
+                _logger?.LogInfo("Cleaned up all audio resources");
+            }
         }
 
         /// <summary>
         /// 获取当前跟踪的资源数量
         /// </summary>
-        public int TrackedCount => _flacStreamReaders.Count + _pcmStreamReaders.Count + _urlFlacLoaders.Count;
+        public int TrackedCount
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _flacStreamReaders.Count + _pcmStreamReaders.Count + _urlFlacLoaders.Count;
+                }
+            }
+        }
     }
 }
